@@ -1,0 +1,17 @@
+[project]
+name = "DushuoServer"
+version = "0.1.0"
+description = "度朔-服务端"
+readme = "README.md"
+authors = [
+    { name = "Eilles", email = "W-YI_DoctorYI@outlook.com" }
+]
+requires-python = ">=3.10"
+dependencies = []
+
+# [project.scripts]
+# dushuoserver = "dushuoserver:main"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
