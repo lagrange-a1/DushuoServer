@@ -1,17 +1,29 @@
 [project]
-name = "DushuoServer"
-version = "0.1.0"
-description = "度朔-服务端"
-readme = "README.md"
-authors = [
-    { name = "Eilles", email = "W-YI_DoctorYI@outlook.com" }
-]
-requires-python = ">=3.10"
-dependencies = []
+    name        = "DushuoServer"
+    version     = "0.1.0"
+    description = "度朔-服务端"
+
+    readme = "README.md"
+
+    authors = [
+        { name = "Eilles", email = "W-YI_DoctorYI@outlook.com" },
+    ]
+
+    requires-python = ">=3.10, <4.0"
+    dependencies = [
+        "fastapi>=0.162.0",
+        "qrcode[pil]>=8.2",
+        "uvicorn[standard]>=0.54.0",
+    ]
 
 # [project.scripts]
 # dushuoserver = "dushuoserver:main"
 
+
 [build-system]
-requires = ["pdm-backend"]
-build-backend = "pdm.backend"
+    requires      = ["pdm-backend"]
+    build-backend = "pdm.backend"
+
+
+[tool.pyright]
+    typeCheckingMode = "standard"

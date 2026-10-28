@@ -14,4 +14,56 @@
 
 **_本仓库内为度朔系统的服务端代码。_**
 
-我们使用 Python 语言进行开发，并使用 FastAPI 框架运行 Web 服务。
+我们使用 Python 语言进行开发，并使用 FastAPI 框架运行 Web 服务、使用 SQLite 数据库进行数据存储。
+
+服务端为纯后端服务，不提供任何前端页面。
+
+## 功能特性
+
+- 启动后开始死亡判定倒计时。
+- 接收客户端数字活动并重置倒计时。
+- 提供服务端状态查询。
+- 支持修改除服务端口外的运行配置。
+- 倒计时结束时执行配置的最终任务。
+- 提供配对窗口、二维码和桌面端配置码。
+- 支持客户端之间通过短报文缓存进行通信。
+
+## 项目结构
+
+```text
+src/
+├── main.py
+└── dushuoserver/
+    ├── app.py
+    ├── config.py
+    ├── database.py
+    ├── runtime.py
+    ├── schemas.py
+    ├── services.py
+    └── service/
+        └── routers_*.py
+```
+
+## 快速开始
+
+```bash
+pip install -e .
+python src/main.py
+```
+
+默认监听 `0.0.0.0:8000`，数据库文件为 `dushuo.db`。
+
+## 测试
+
+```bash
+python -m compileall src
+pytest
+```
+
+## 接口文档
+
+详见 `docs/API-Reference.md`。
+
+## 安全说明
+
+`final_task` 会通过 shell 执行，请仅配置可信脚本。服务端端口不可由客户端修改。
