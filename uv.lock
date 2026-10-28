@@ -72,6 +72,7 @@ source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "qrcode", extra = ["pil"] },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -87,6 +88,7 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'test'", specifier = ">=0.27" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0" },
     { name = "qrcode", extras = ["pil"], specifier = ">=8.2" },
+    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]
 provides-extras = ["test"]

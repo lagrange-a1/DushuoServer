@@ -47,7 +47,7 @@
 ## 功能命令 Common Commands
 
 - 安装依赖：`uv sync`
-- 启动服务：`python src/main.py`
+- 启动服务：`python -m dushuoserver` 或安装后的 `dushuoserver` 命令
 - 直接使用 Uvicorn 启动：`uvicorn dushuoserver.app:app --app-dir src --host 0.0.0.0 --port 8000`
 - 代码格式化：`black src`
 
@@ -62,7 +62,7 @@
 - 新增接口时，优先在 `src/dushuoserver/service/routers_*.py` 中添加路由。
 - 业务逻辑应放在 `src/dushuoserver/services.py` 或独立服务模块中。
 - 数据库访问应集中在 `src/dushuoserver/database.py`。
-- 默认配置文件为 `src/dushuoserver/default_config.json`；`src/dushuoserver/config.py` 负责读取、校验并维护可修改项。
+- 默认配置文件为 `src/dushuoserver/default_config.toml`；`src/dushuoserver/config.py` 负责读取、校验并维护可修改项。
 - 请求与响应模型应放在 `src/dushuoserver/schemas.py`。
 - 新增或修改接口后，同步更新 `docs/API-Reference.md`。
 

@@ -3,16 +3,25 @@
 import json
 import sqlite3
 import time
+from contextlib import contextmanager
 from typing import Any, Optional
 
-from .config import DB_PATH, DEFAULT_CONFIG
+from . import config
+from .config import DB_PATH, DEFAULT_CONFIG, MUTABLE_CONFIG_KEYS
 
 
-def get_connection() -> sqlite3.Connection:
-    """创建一个启用行工厂的 SQLite 连接。"""
+@contextmanager
+def get_connection():
+    """创建一个启用行工厂的 SQLite 连接。
+
+    使用上下文管理器确保连接在使用后关闭，避免 Windows 上文件被占用。
+    """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def init_database() -> None:
@@ -56,11 +65,25 @@ def init_database() -> None:
             """
         )
 
+        # 监听端口等不可变配置不写入数据库；数据库只保存可运行时修改的配置。
         for key, value in DEFAULT_CONFIG.items():
+            if key not in MUTABLE_CONFIG_KEYS:
+                continue
             conn.execute(
                 "INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
                 (key, json.dumps(value)),
             )
+
+        # 命令行显式覆盖项优先于数据库中已有值。
+        for key, value in getattr(config, "CONFIG_OVERRIDES", {}).items():
+            if key not in MUTABLE_CONFIG_KEYS:
+                continue
+            conn.execute(
+                "INSERT INTO config (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (key, json.dumps(value)),
+            )
+
         conn.commit()
 
 

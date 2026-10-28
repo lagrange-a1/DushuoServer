@@ -34,6 +34,8 @@
 src/
 ├── main.py
 └── dushuoserver/
+    ├── __main__.py
+    ├── main.py
     ├── app.py
     ├── config.py
     ├── database.py
@@ -58,10 +60,17 @@ uv sync
 uv sync --extra test
 ```
 
+也可以通过 pip 安装本项目，并使用命令行入口启动：
+
+```bash
+pip install .
+dushuoserver --host 0.0.0.0 --port 8000
+```
+
 启动服务：
 
 ```bash
-python src/main.py
+python -m dushuoserver
 ```
 
 也可以直接使用 Uvicorn：
@@ -70,9 +79,31 @@ python src/main.py
 uvicorn dushuoserver.app:app --app-dir src --host 0.0.0.0 --port 8000
 ```
 
+### 命令行参数
+
+`dushuoserver` / `python src/main.py` 支持常见服务端启动参数：
+
+| 参数 | 说明 |
+| --- | --- |
+| `--host` | 监听地址，默认 `0.0.0.0` |
+| `--port` | 监听端口；未指定时使用默认配置中的 `port` |
+| `--workers` | Uvicorn 工作进程数，默认 `1` |
+| `--reload` | 开启开发模式热重载 |
+| `--log-level` | 日志级别 |
+| `--no-access-log` | 关闭访问日志 |
+| `--config` / `--default-config` | 默认配置 TOML 文件路径 |
+| `--database` / `--db-path` | SQLite 数据库文件路径 |
+
+示例：
+
+```bash
+dushuoserver --host 127.0.0.1 --port 8080 --database ./data/dushuo.db
+dushuoserver --config ./my_config.toml --reload
+```
+
 默认监听 `0.0.0.0:8000`，数据库文件为当前工作目录下的 `dushuo.db`。
 
-默认配置位于 `src/dushuoserver/default_config.json`。服务启动时会将其中的默认值写入数据库；客户端只能修改允许修改的配置项，服务端口不可修改。
+默认配置位于 `src/dushuoserver/default_config.toml`，格式为 TOML。服务启动时会将其中的默认值写入数据库；客户端只能修改允许修改的配置项，服务端口不可修改。如果通过 `--config` 指定配置文件，则使用该文件作为默认配置来源。
 
 ## 测试
 
