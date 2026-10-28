@@ -1,0 +1,8 @@
+{
+  "port": 8000,
+  "activity_retention_seconds": 86400,
+  "countdown_seconds": 86400,
+  "final_task": "",
+  "pairing_window_seconds": 300,
+  "message_cache_seconds": 3600
+}

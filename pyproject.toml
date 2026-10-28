@@ -20,10 +20,24 @@
 # dushuoserver = "dushuoserver:main"
 
 
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+]
+
+# [project.scripts]
+# dushuoserver = "dushuoserver:main"
+
+
 [build-system]
     requires      = ["pdm-backend"]
     build-backend = "pdm.backend"
 
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
 
 [tool.pyright]
     typeCheckingMode = "standard"

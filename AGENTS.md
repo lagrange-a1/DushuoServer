@@ -62,14 +62,15 @@
 - 新增接口时，优先在 `src/dushuoserver/service/routers_*.py` 中添加路由。
 - 业务逻辑应放在 `src/dushuoserver/services.py` 或独立服务模块中。
 - 数据库访问应集中在 `src/dushuoserver/database.py`。
-- 配置默认值与可修改项应在 `src/dushuoserver/config.py` 中维护。
+- 默认配置文件为 `src/dushuoserver/default_config.json`；`src/dushuoserver/config.py` 负责读取、校验并维护可修改项。
 - 请求与响应模型应放在 `src/dushuoserver/schemas.py`。
 - 新增或修改接口后，同步更新 `docs/API-Reference.md`。
 
 ### 测试 Testing
 
-- 当前项目暂无自动化测试，提交前至少运行 `python -m compileall src`。
-- 建议使用 `pytest` 与 FastAPI `TestClient` 编写接口测试。
+- 项目已提供基于 `pytest` 和 FastAPI `TestClient` 的自动化测试，位于 `tests/`。
+- 提交前至少运行 `uv run pytest` 与 `python -m compileall src`。
+- 测试使用独立的临时 SQLite 数据库，不会修改项目根目录下的 `dushuo.db`。
 - 手动测试时，可通过 `GET /health`、`GET /`、`GET /api/status` 等接口验证服务。
 
 ### 代码风格 Code Style

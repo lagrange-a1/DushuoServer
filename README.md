@@ -46,18 +46,39 @@ src/
 
 ## 快速开始
 
+安装运行时依赖：
+
 ```bash
-pip install -e .
+uv sync
+```
+
+安装测试依赖：
+
+```bash
+uv sync --extra test
+```
+
+启动服务：
+
+```bash
 python src/main.py
 ```
 
-默认监听 `0.0.0.0:8000`，数据库文件为 `dushuo.db`。
+也可以直接使用 Uvicorn：
+
+```bash
+uvicorn dushuoserver.app:app --app-dir src --host 0.0.0.0 --port 8000
+```
+
+默认监听 `0.0.0.0:8000`，数据库文件为当前工作目录下的 `dushuo.db`。
+
+默认配置位于 `src/dushuoserver/default_config.json`。服务启动时会将其中的默认值写入数据库；客户端只能修改允许修改的配置项，服务端口不可修改。
 
 ## 测试
 
 ```bash
+uv run pytest
 python -m compileall src
-pytest
 ```
 
 ## 接口文档
