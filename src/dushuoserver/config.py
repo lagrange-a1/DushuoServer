@@ -1,13 +1,16 @@
 """度朔服务端配置定义。"""
 
+import logging
+import sys
 from pathlib import Path
 from typing import Any
-from sys import version_info
 
-if version_info >= (3, 11):
+logger = logging.getLogger(__name__)
+
+if sys.version_info >= (3, 11):
     import tomllib
 else:
-    import tomli as tomllib # pyright: ignore[reportMissingImports]
+    import tomli as tomllib  # pyright: ignore[reportMissingImports]
 
 # SQLite 数据库文件路径。服务默认在当前工作目录创建该文件。
 DB_PATH = Path("dushuo.db")

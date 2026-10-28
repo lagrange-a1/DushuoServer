@@ -18,7 +18,9 @@ def test_pairing_info_requires_key(client: TestClient) -> None:
     assert response.status_code == 403
 
 
-def test_pairing_info_available(client: TestClient, auth_headers: dict[str, str]) -> None:
+def test_pairing_info_available(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
     response = client.get("/api/pairing", headers=auth_headers)
     assert response.status_code == 200
     body = response.json()
@@ -26,7 +28,9 @@ def test_pairing_info_available(client: TestClient, auth_headers: dict[str, str]
     assert "pairing_uri" in body
 
 
-def test_pairing_window_closed(client: TestClient, auth_headers: dict[str, str]) -> None:
+def test_pairing_window_closed(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
     runtime.state["started_at"] = time.time() - 10000
 
     response = client.get("/")

@@ -4,7 +4,11 @@ import time
 
 from fastapi import APIRouter, HTTPException, Request
 
-from ..config import MUTABLE_CONFIG_KEYS
+import logging
+
+from ..config import IMMUTABLE_CONFIG_KEYS, MUTABLE_CONFIG_KEYS
+
+logger = logging.getLogger(__name__)
 from ..database import get_config, set_config_value
 from ..runtime import state
 from ..schemas import ConfigUpdateRequest
@@ -25,11 +29,10 @@ def update_config(request: Request, body: ConfigUpdateRequest) -> dict:
     """修改允许客户端修改的配置项。"""
     require_key(request)
 
-    if body.port is not None:
-        raise HTTPException(status_code=400, detail="服务开放端口不可由客户端修改")
-
     updates = body.model_dump(exclude_none=True)
-    updates.pop("port", None)
+
+    if any(key in IMMUTABLE_CONFIG_KEYS for key in updates):
+        raise HTTPException(status_code=400, detail=f"所提交的配置项不可由客户端修改")
 
     for key, value in updates.items():
         if key not in MUTABLE_CONFIG_KEYS:
@@ -52,4 +55,5 @@ def update_config(request: Request, body: ConfigUpdateRequest) -> dict:
         cfg = get_config()
         state["deadline"] = time.time() + cfg["countdown_seconds"]
 
+    logger.info("配置更新请求已处理: %s", sorted(updates))
     return get_config()

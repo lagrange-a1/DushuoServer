@@ -23,7 +23,8 @@ def status(request: Request) -> dict:
         "status": "dead" if state["triggered"] else "alive",
         "countdown_remaining_seconds": max(0, state["deadline"] - now),
         "last_activity_at": state["last_activity_at"],
-        "pairing_window_open": now < state["started_at"] + cfg["pairing_window_seconds"],
+        "pairing_window_open": now
+        < state["started_at"] + cfg["pairing_window_seconds"],
         "pairing_window_remaining_seconds": max(
             0, state["started_at"] + cfg["pairing_window_seconds"] - now
         ),

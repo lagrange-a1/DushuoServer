@@ -1,8 +1,11 @@
 """短报文路由。"""
 
+import logging
 import time
 
 from fastapi import APIRouter, Request
+
+logger = logging.getLogger(__name__)
 
 from ..database import (
     cleanup_messages,
@@ -39,9 +42,11 @@ def message(request: Request, body: MessageRequest) -> dict:
 
         if msg is None:
             insert_message(body.content, time.time())
+            logger.debug("设备 %s 设置了新的短报文", body.device_id)
             return {"action": "set", "message": body.content}
 
         delete_message(msg["id"])
+        logger.debug("设备 %s 删除了当前短报文", body.device_id)
         return {"action": "deleted", "message": None}
 
     # 内容为空时，获取当前消息。

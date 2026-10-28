@@ -1,22 +1,25 @@
 """度朔服务端数据库访问层。"""
 
 import json
+import logging
 import sqlite3
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any, Optional
 
 from . import config
-from .config import DB_PATH, DEFAULT_CONFIG, MUTABLE_CONFIG_KEYS
+
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
-def get_connection():
+def get_connection() -> Generator[sqlite3.Connection, None, None]:
     """创建一个启用行工厂的 SQLite 连接。
 
     使用上下文管理器确保连接在使用后关闭，避免 Windows 上文件被占用。
     """
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(config.DB_PATH)
     conn.row_factory = sqlite3.Row
     try:
         yield conn
@@ -27,47 +30,39 @@ def get_connection():
 def init_database() -> None:
     """初始化数据库表结构并写入默认配置。"""
     with get_connection() as conn:
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS config (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             )
-            """
-        )
-        conn.execute(
-            """
+            """)
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS activities (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 client_id TEXT NOT NULL,
                 activity TEXT,
                 created_at REAL NOT NULL
             )
-            """
-        )
-        conn.execute(
-            """
+            """)
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 content TEXT NOT NULL,
                 created_at REAL NOT NULL
             )
-            """
-        )
-        conn.execute(
-            """
+            """)
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS message_fetches (
                 device_id TEXT NOT NULL,
                 message_id INTEGER NOT NULL,
                 fetched_at REAL NOT NULL,
                 PRIMARY KEY (device_id, message_id)
             )
-            """
-        )
+            """)
 
         # 监听端口等不可变配置不写入数据库；数据库只保存可运行时修改的配置。
-        for key, value in DEFAULT_CONFIG.items():
-            if key not in MUTABLE_CONFIG_KEYS:
+        for key, value in config.DEFAULT_CONFIG.items():
+            if key not in config.MUTABLE_CONFIG_KEYS:
                 continue
             conn.execute(
                 "INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
@@ -76,7 +71,7 @@ def init_database() -> None:
 
         # 命令行显式覆盖项优先于数据库中已有值。
         for key, value in getattr(config, "CONFIG_OVERRIDES", {}).items():
-            if key not in MUTABLE_CONFIG_KEYS:
+            if key not in config.MUTABLE_CONFIG_KEYS:
                 continue
             conn.execute(
                 "INSERT INTO config (key, value) VALUES (?, ?) "
@@ -92,7 +87,7 @@ def get_config() -> dict[str, Any]:
     with get_connection() as conn:
         rows = conn.execute("SELECT key, value FROM config").fetchall()
 
-    result = dict(DEFAULT_CONFIG)
+    result = dict(config.DEFAULT_CONFIG)
     for row in rows:
         result[row["key"]] = json.loads(row["value"])
     return result

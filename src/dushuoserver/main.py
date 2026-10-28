@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import argparse
-import time
 from pathlib import Path
 
 import uvicorn
 
-from . import config, database, runtime
+from . import config, runtime
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -18,7 +17,9 @@ def build_parser() -> argparse.ArgumentParser:
         description="度朔服务端：通过监控数字活动进行生死判断。",
     )
     parser.add_argument("--host", default="0.0.0.0", help="监听地址")
-    parser.add_argument("--port", type=int, default=None, help="监听端口；未指定时使用默认配置中的 port")
+    parser.add_argument(
+        "--port", type=int, default=None, help="监听端口；未指定时使用默认配置中的 port"
+    )
     parser.add_argument("--workers", type=int, default=1, help="Uvicorn 工作进程数")
     parser.add_argument("--reload", action="store_true", help="开启开发模式热重载")
     parser.add_argument(
@@ -68,7 +69,6 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.database_path is not None:
         config.set_db_path(args.database_path)
-        database.DB_PATH = config.DB_PATH
 
     overrides: dict[str, object] = {}
     if args.port is not None:
@@ -86,11 +86,6 @@ def main(argv: list[str] | None = None) -> None:
 
     config.CONFIG_OVERRIDES = overrides
     config.DEFAULT_CONFIG.update(overrides)
-    database.DEFAULT_CONFIG = config.DEFAULT_CONFIG
-
-    runtime.state["deadline"] = (
-        time.time() + config.DEFAULT_CONFIG.get("countdown_seconds", 86400)
-    )
 
     port = int(config.DEFAULT_CONFIG.get("port", 8000))
 

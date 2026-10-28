@@ -1,12 +1,15 @@
 """度朔服务端运行时状态与倒计时。"""
 
 import asyncio
+import logging
 import secrets
 import time
 from typing import Any, Callable, Coroutine
 
 from .config import DEFAULT_CONFIG
 from .database import get_config
+
+logger = logging.getLogger(__name__)
 
 # 服务运行时状态。配对密钥在每次启动时重新生成。
 state: dict[str, Any] = {
@@ -32,4 +35,5 @@ async def countdown_loop(execute_final_task: Callable[[], None]) -> None:
 
         if time.time() >= state["deadline"]:
             state["triggered"] = True
+            logger.info("死亡判定倒计时结束，开始执行最终任务")
             await asyncio.to_thread(execute_final_task)

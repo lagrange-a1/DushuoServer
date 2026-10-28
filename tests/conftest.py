@@ -6,14 +6,14 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from dushuoserver import database, runtime
+from dushuoserver import config, runtime
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """为每个测试提供独立的数据库文件和运行时状态。"""
     db_path = tmp_path / "dushuo.db"
-    monkeypatch.setattr(database, "DB_PATH", db_path)
+    monkeypatch.setattr(config, "DB_PATH", db_path)
 
     runtime.state["pairing_key"] = "test-pairing-key"
     runtime.state["started_at"] = time.time()

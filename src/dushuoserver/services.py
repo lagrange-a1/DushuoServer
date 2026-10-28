@@ -2,16 +2,19 @@
 
 import base64
 import json
+import logging
 import secrets
 import subprocess
 import time
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import HTTPException, Request
 
 from .config import FINAL_TASK_TIMEOUT_SECONDS
 from .database import get_config
 from .runtime import state
+
+logger = logging.getLogger(__name__)
 
 
 def require_key(request: Request) -> None:
@@ -25,11 +28,13 @@ def require_key(request: Request) -> None:
 def execute_final_task() -> None:
     """执行配置中的最终任务脚本。"""
     cfg = get_config()
-    script = cfg.get("final_task", "")
+    script = str(cfg.get("final_task", "")).strip()
 
     if not script:
+        logger.info("未配置最终任务，跳过执行")
         return
 
+    logger.info("开始执行最终任务")
     try:
         subprocess.run(
             script,
@@ -37,9 +42,11 @@ def execute_final_task() -> None:
             check=False,
             timeout=FINAL_TASK_TIMEOUT_SECONDS,
         )
+        logger.info("最终任务执行完成")
+    except subprocess.TimeoutExpired:
+        logger.warning("最终任务执行超时，已终止")
     except Exception:
-        # 最终任务失败时保留服务运行，避免整个服务退出
-        pass
+        logger.exception("最终任务执行失败，服务继续运行")
 
 
 def pairing_open() -> bool:
@@ -74,7 +81,7 @@ def pairing_qr_html() -> str:
 
         image = qrcode.make(f"dushuo://pair?{encoded}")
         buffer = BytesIO()
-        image.save(buffer, format="PNG")
+        image.save(buffer, format="PNG") # pyright: ignore[reportCallIssue]
         qr_src = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode()
         return f'<img src="{qr_src}" alt="配对二维码" />'
     except Exception:
