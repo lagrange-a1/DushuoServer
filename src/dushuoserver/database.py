@@ -1,7 +1,6 @@
 """度朔服务端数据库访问层。"""
 
 import json
-import logging
 import sqlite3
 import time
 from collections.abc import Generator
@@ -9,8 +8,7 @@ from contextlib import contextmanager
 from typing import Any, Optional
 
 from . import config
-
-logger = logging.getLogger(__name__)
+from .logger import logger
 
 
 @contextmanager
@@ -29,6 +27,7 @@ def get_connection() -> Generator[sqlite3.Connection, None, None]:
 
 def init_database() -> None:
     """初始化数据库表结构并写入默认配置。"""
+    logger.info("初始化数据库")
     with get_connection() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS config (
@@ -84,12 +83,14 @@ def init_database() -> None:
 
 def get_config() -> dict[str, Any]:
     """读取当前服务配置。"""
+    logger.info("读取配置")
     with get_connection() as conn:
         rows = conn.execute("SELECT key, value FROM config").fetchall()
 
     result = dict(config.DEFAULT_CONFIG)
     for row in rows:
         result[row["key"]] = json.loads(row["value"])
+    logger.debug("配置：`{}`".format(result))
     return result
 
 

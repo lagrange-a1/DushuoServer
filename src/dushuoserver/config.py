@@ -1,11 +1,8 @@
 """度朔服务端配置定义。"""
 
-import logging
 import sys
 from pathlib import Path
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 if sys.version_info >= (3, 11):
     import tomllib

@@ -67,12 +67,12 @@ wheels = [
 
 [[package]]
 name = "dushuoserver"
-version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "qrcode", extra = ["pil"] },
     { name = "tomli", marker = "python_full_version < '3.11'" },
+    { name = "trimlog" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -84,12 +84,13 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi", specifier = ">=0.162.0" },
+    { name = "fastapi", specifier = ">=0.162.0,<1.0.0" },
     { name = "httpx", marker = "extra == 'test'", specifier = ">=0.27" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0" },
-    { name = "qrcode", extras = ["pil"], specifier = ">=8.2" },
+    { name = "qrcode", extras = ["pil"], specifier = ">=8.2,<9.0.0" },
     { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
+    { name = "trimlog", specifier = ">=1.1.1,<2.0.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0,<1.0.0" },
 ]
 provides-extras = ["test"]
 
@@ -288,6 +289,27 @@ source = { registry = "https://mirror.nju.edu.cn/pypi/web/simple" }
 sdist = { url = "https://mirror.nju.edu.cn/pypi/web/packages/01/e1/2069291243c926a2ff1cd706c7f3eeb9b62144bf60f77c9fb9ff2fb26bd3/iniconfig-2.3.1.tar.gz", hash = "sha256:67f4b9c50da0dedf52af349e7749a80a9057a5031199791b906c3bb3ae878960" }
 wheels = [
     { url = "https://mirror.nju.edu.cn/pypi/web/packages/56/43/4ca9e49d27a1fcf6bece6f6aec0ea46bb9112489b93d4b688fb415457bdb/iniconfig-2.3.1-py3-none-any.whl", hash = "sha256:9121e2c1fdb355232495be3194c8dfe87ccc2d5dee45947b78e68f499790d7a7" },
+]
+
+[[package]]
+name = "markdown-it-py"
+version = "4.2.0"
+source = { registry = "https://mirror.nju.edu.cn/pypi/web/simple" }
+dependencies = [
+    { name = "mdurl" },
+]
+sdist = { url = "https://mirror.nju.edu.cn/pypi/web/packages/06/ff/7841249c247aa650a76b9ee4bbaeae59370dc8bfd2f6c01f3630c35eb134/markdown_it_py-4.2.0.tar.gz", hash = "sha256:04a21681d6fbb623de53f6f364d352309d4094dd4194040a10fd51833e418d49" }
+wheels = [
+    { url = "https://mirror.nju.edu.cn/pypi/web/packages/b3/81/4da04ced5a082363ecfa159c010d200ecbd959ae410c10c0264a38cac0f5/markdown_it_py-4.2.0-py3-none-any.whl", hash = "sha256:9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a" },
+]
+
+[[package]]
+name = "mdurl"
+version = "0.1.2"
+source = { registry = "https://mirror.nju.edu.cn/pypi/web/simple" }
+sdist = { url = "https://mirror.nju.edu.cn/pypi/web/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba" }
+wheels = [
+    { url = "https://mirror.nju.edu.cn/pypi/web/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8" },
 ]
 
 [[package]]
@@ -791,6 +813,28 @@ pil = [
 ]
 
 [[package]]
+name = "rich"
+version = "15.0.0"
+source = { registry = "https://mirror.nju.edu.cn/pypi/web/simple" }
+dependencies = [
+    { name = "markdown-it-py" },
+    { name = "pygments" },
+]
+sdist = { url = "https://mirror.nju.edu.cn/pypi/web/packages/c0/8f/0722ca900cc807c13a6a0c696dacf35430f72e0ec571c4275d2371fca3e9/rich-15.0.0.tar.gz", hash = "sha256:edd07a4824c6b40189fb7ac9bc4c52536e9780fbbfbddf6f1e2502c31b068c36" }
+wheels = [
+    { url = "https://mirror.nju.edu.cn/pypi/web/packages/82/3b/64d4899d73f91ba49a8c18a8ff3f0ea8f1c1d75481760df8c68ef5235bf5/rich-15.0.0-py3-none-any.whl", hash = "sha256:33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb" },
+]
+
+[[package]]
+name = "setuptools"
+version = "84.2.1"
+source = { registry = "https://mirror.nju.edu.cn/pypi/web/simple" }
+sdist = { url = "https://mirror.nju.edu.cn/pypi/web/packages/70/b3/c19426f783614d625699a4b247faf628ea9ab1db228674491767b417f9e1/setuptools-84.2.1.tar.gz", hash = "sha256:3ff8b3b5492a0aa66960f4419365a86b84e013070d4313e4d4a6894f5d64d6bc" }
+wheels = [
+    { url = "https://mirror.nju.edu.cn/pypi/web/packages/ef/55/6dc6d6bb953bdfc52519a0059592c52b6e3b8ad51cf8256dffceb55b0610/setuptools-84.2.1-py3-none-any.whl", hash = "sha256:ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2" },
+]
+
+[[package]]
 name = "starlette"
 version = "1.7.0"
 source = { registry = "https://mirror.nju.edu.cn/pypi/web/simple" }
@@ -892,6 +936,19 @@ wheels = [
     { url = "https://mirror.nju.edu.cn/pypi/web/packages/1c/b8/63a75cfb27a17c38550e44025d3a6e7be64516fd8608a3b75703bf37d81b/tomli-2.5.0-cp315-cp315t-win_amd64.whl", hash = "sha256:f3fcbc57b1791fa6cbe5d8434179d51de12be1a4811469529f47f6e7487a2571" },
     { url = "https://mirror.nju.edu.cn/pypi/web/packages/72/01/e8c1debb2173973372934c68fc8e46170ab60ef23ed4592dff4dec6e8993/tomli-2.5.0-cp315-cp315t-win_arm64.whl", hash = "sha256:d2ba24db8a9376921b5e87b4762b9adb0f3f1deaea68f2b8b0bb2c11efb9c3e7" },
     { url = "https://mirror.nju.edu.cn/pypi/web/packages/60/3f/3e3f8fd0919249b0200c80fbc4f9a1e70be19f9883da71dfb7f8b9ab8aca/tomli-2.5.0-py3-none-any.whl", hash = "sha256:32a7b79ac57a2e83670ce329ccf675798bc5a2094783a63676866b70503f2e2b" },
+]
+
+[[package]]
+name = "trimlog"
+version = "1.1.1"
+source = { registry = "https://mirror.nju.edu.cn/pypi/web/simple" }
+dependencies = [
+    { name = "rich" },
+    { name = "setuptools" },
+]
+sdist = { url = "https://mirror.nju.edu.cn/pypi/web/packages/a2/14/7852b24ae4f78f4cc52f6a87870160b8d75cf97176565bf8804e0b049069/trimlog-1.1.1.tar.gz", hash = "sha256:eb41683bbe7d4bd9aeccc59e61eb67a5d1a5335aebda5234ff3e95b10cd9de5b" }
+wheels = [
+    { url = "https://mirror.nju.edu.cn/pypi/web/packages/ec/22/e34c09a5f71b88e3393004026609a26f703bcb1bbb41207b7a625627337a/trimlog-1.1.1-py3-none-any.whl", hash = "sha256:4b1b27f845da634f4e2755a6e3ab9301c503c6190324e0a0fdce5030916ee0a3" },
 ]
 
 [[package]]

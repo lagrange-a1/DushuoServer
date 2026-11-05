@@ -7,7 +7,7 @@ from pathlib import Path
 
 import uvicorn
 
-from . import config, runtime
+from . import config
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -16,32 +16,64 @@ def build_parser() -> argparse.ArgumentParser:
         prog="dushuoserver",
         description="度朔服务端：通过监控数字活动进行生死判断。",
     )
-    parser.add_argument("--host", default="0.0.0.0", help="监听地址")
-    parser.add_argument(
-        "--port", type=int, default=None, help="监听端口；未指定时使用默认配置中的 port"
+
+    starter_argumets = parser.add_argument_group(
+        "启动参数",
+        "在服务端启动时须配置的参数，无法在客户端修改。",
     )
-    parser.add_argument("--workers", type=int, default=1, help="Uvicorn 工作进程数")
-    parser.add_argument("--reload", action="store_true", help="开启开发模式热重载")
-    parser.add_argument(
-        "--log-level",
-        default="info",
-        choices=["critical", "error", "warning", "info", "debug", "trace"],
-        help="日志级别",
+
+    starter_argumets.add_argument(
+        "-a",
+        "--host",
+        "--addr",
+        "--address",
+        default="0.0.0.0",
+        help="监听地址",
     )
-    parser.add_argument(
-        "--no-access-log",
-        action="store_true",
-        help="关闭访问日志",
+    starter_argumets.add_argument(
+        "-p",
+        "--port",
+        type=int,
+        default=18470,
+        help="监听端口",
     )
-    parser.add_argument(
+
+    starter_argumets.add_argument(
+        "-c",
         "--config",
         "--default-config",
         dest="config_path",
         type=Path,
         default=None,
-        help="默认配置 TOML 文件路径",
+        help="配置文件路径，若配置文件中有与命令行参数冲突的参数，将使用命令行参数覆盖。",
     )
-    parser.add_argument(
+
+    starter_argumets.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Uvicorn 工作进程数",
+    )
+    starter_argumets.add_argument(
+        "-r",
+        "--reload",
+        action="store_true",
+        help="开启开发模式热重载",
+    )
+
+    starter_argumets.add_argument(
+        "--log-level",
+        default="info",
+        choices=["critical", "error", "warning", "info", "debug", "trace"],
+        help="日志级别",
+    )
+    starter_argumets.add_argument(
+        "--no-access-log",
+        action="store_true",
+        help="关闭 Uvicorn 访问日志",
+    )
+
+    starter_argumets.add_argument(
         "--database",
         "--db-path",
         dest="database_path",
@@ -51,11 +83,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # 可运行时修改的配置项，可通过命令行覆盖默认配置文件。
-    parser.add_argument("--activity-retention-seconds", type=int, default=None)
-    parser.add_argument("--countdown-seconds", type=int, default=None)
-    parser.add_argument("--final-task", type=str, default=None)
-    parser.add_argument("--pairing-window-seconds", type=int, default=None)
-    parser.add_argument("--message-cache-seconds", type=int, default=None)
+
+    runtime_argumets = parser.add_argument_group(
+        "运行时参数",
+        "可运行时修改的配置项，可通过客户端修改，不应在配置文件中出现。",
+    )
+
+    runtime_argumets.add_argument(
+        "--activity-retention-seconds", type=int, default=None
+    )
+    runtime_argumets.add_argument("--countdown-seconds", type=int, default=None)
+    runtime_argumets.add_argument("--final-task", type=str, default=None)
+    runtime_argumets.add_argument("--pairing-window-seconds", type=int, default=None)
+    runtime_argumets.add_argument("--message-cache-seconds", type=int, default=None)
 
     return parser
 
@@ -102,6 +142,13 @@ def main(argv: list[str] | None = None) -> None:
         log_level=args.log_level,
         access_log=not args.no_access_log,
     )
+
+    from .logger import logger
+    from TrimLog.logger_constants import WEIGHT_ORDER
+
+    if (trimlog_log_level := args.log_level.upper()) not in WEIGHT_ORDER:
+        trimlog_log_level = "DEBUG"
+    logger.set_print_level = trimlog_log_level
 
 
 if __name__ == "__main__":
