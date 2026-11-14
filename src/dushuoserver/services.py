@@ -2,7 +2,6 @@
 
 import base64
 import json
-import logging
 import secrets
 import subprocess
 import time
@@ -10,25 +9,22 @@ from typing import Any
 
 from fastapi import HTTPException, Request
 
-from .config import FINAL_TASK_TIMEOUT_SECONDS
-from .database import get_config
+from .logger import logger
+from .config import config
 from .runtime import state
 
-logger = logging.getLogger(__name__)
 
-
-def require_key(request: Request) -> None:
+def require_key(request: Request):
     """校验请求中的配对密钥。"""
     supplied = request.headers.get("X-Pairing-Key") or request.query_params.get("key")
 
-    if not supplied or not secrets.compare_digest(supplied, state["pairing_key"]):
+    if not supplied or not secrets.compare_digest(supplied, state.pairing_key):
         raise HTTPException(status_code=403, detail="配对密钥不匹配")
 
 
-def execute_final_task() -> None:
+def execute_final_task():
     """执行配置中的最终任务脚本。"""
-    cfg = get_config()
-    script = str(cfg.get("final_task", "")).strip()
+    script = config.runtime.execution_task.strip()
 
     if not script:
         logger.info("未配置最终任务，跳过执行")
@@ -40,26 +36,20 @@ def execute_final_task() -> None:
             script,
             shell=True,
             check=False,
-            timeout=FINAL_TASK_TIMEOUT_SECONDS,
         )
         logger.info("最终任务执行完成")
     except subprocess.TimeoutExpired:
         logger.warning("最终任务执行超时，已终止")
     except Exception:
-        logger.exception("最终任务执行失败，服务继续运行")
+        logger.error("最终任务执行失败，服务继续运行")
 
-
-def pairing_open() -> bool:
-    """判断配对窗口是否仍然开放。"""
-    cfg = get_config()
-    return time.time() < state["started_at"] + cfg["pairing_window_seconds"]
 
 
 def pairing_payload() -> dict[str, str]:
     """生成配对数据与桌面端配置码。"""
     cfg = get_config()
     payload = {
-        "host": f"127.0.0.1:{cfg['port']}",
+        "host": "127.0.0.1:{}".format(cfg["port"]),
         "key": state["pairing_key"],
     }
     encoded = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
@@ -67,7 +57,7 @@ def pairing_payload() -> dict[str, str]:
         "host": payload["host"],
         "key": payload["key"],
         "config_code": encoded,
-        "pairing_uri": f"dushuo://pair?{encoded}",
+        "pairing_uri": "dushuo://pair?{}".format(encoded),
     }
 
 
@@ -79,10 +69,10 @@ def pairing_qr_html() -> str:
         import qrcode
         from io import BytesIO
 
-        image = qrcode.make(f"dushuo://pair?{encoded}")
+        image = qrcode.make("dushuo://pair?{}".format(encoded))
         buffer = BytesIO()
-        image.save(buffer, format="PNG") # pyright: ignore[reportCallIssue]
+        image.save(buffer, format="PNG")  # pyright: ignore[reportCallIssue]
         qr_src = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode()
-        return f'<img src="{qr_src}" alt="配对二维码" />'
+        return '<img src="{}" alt="配对二维码" />'.format(qr_src)
     except Exception:
-        return f"<p>配对数据：dushuo://pair?{encoded}</p>"
+        return "<p>配对数据：dushuo://pair?{}</p>".format(encoded)

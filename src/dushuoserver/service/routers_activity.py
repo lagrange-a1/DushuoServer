@@ -1,12 +1,10 @@
 """活动上报路由。"""
 
-import logging
 import time
 
 from fastapi import APIRouter, Request
 
-logger = logging.getLogger(__name__)
-
+from ..logger import logger
 from ..database import cleanup_activities, get_config, insert_activity
 from ..runtime import state
 from ..schemas import ActivityRequest
@@ -29,7 +27,7 @@ def report_activity(request: Request, body: ActivityRequest) -> dict:
 
     if not state["triggered"]:
         state["deadline"] = now + cfg["countdown_seconds"]
-        logger.debug("收到客户端 %s 的活动，倒计时已重置", body.client_id)
+        logger.debug("收到客户端`{}`的活动，倒计时已重置".format(body.client_id))
 
     return {
         "accepted": True,

@@ -4,11 +4,9 @@ import time
 
 from fastapi import APIRouter, HTTPException, Request
 
-import logging
-
+from ..logger import logger
 from ..config import IMMUTABLE_CONFIG_KEYS, MUTABLE_CONFIG_KEYS
 
-logger = logging.getLogger(__name__)
 from ..database import get_config, set_config_value
 from ..runtime import state
 from ..schemas import ConfigUpdateRequest
@@ -55,5 +53,5 @@ def update_config(request: Request, body: ConfigUpdateRequest) -> dict:
         cfg = get_config()
         state["deadline"] = time.time() + cfg["countdown_seconds"]
 
-    logger.info("配置更新请求已处理: %s", sorted(updates))
+    logger.info("配置更新请求已处理: {}".format(sorted(updates)))
     return get_config()

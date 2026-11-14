@@ -11,159 +11,91 @@
 
 本仓库为度朔系统的**服务端**，提供纯后端 HTTP API，不包含前端页面。
 
-## 功能特性
+## 功能
 
-- 启动后开始死亡判定倒计时。
-- 接收客户端数字活动并重置倒计时。
-- 提供服务端状态查询。
-- 支持修改除服务端口外的运行配置。
-- 倒计时结束时执行配置的最终任务。
-- 提供配对窗口、二维码和桌面端配置码。
-- 支持客户端之间通过短报文缓存进行通信。
+* 启动后开始倒计时
+* 接收客户端数字活动并重置倒计时
+* 倒计时结束时执行配置的任务
 
-## 技术栈
+## 启动
 
-- Python 3.10+
-- FastAPI
-- Uvicorn
-- SQLite
-- Pydantic
-- pytest / FastAPI TestClient
+### 安装依赖
 
-## 项目结构
-
-```text
-src/
-└── dushuoserver/
-    ├── __init__.py
-    ├── __main__.py
-    ├── app.py
-    ├── config.py
-    ├── database.py
-    ├── main.py
-    ├── runtime.py
-    ├── schemas.py
-    ├── services.py
-    ├── default_config.toml
-    └── service/
-        └── routers_*.py
-tests/
-docs/
-```
-
-## 快速开始
-
-安装运行时依赖：
+1. 使用 uv：
 
 ```bash
-uv sync
+uv sync # 可通过 `--extra dev` 参数安装开发测试依赖
 ```
 
-安装测试依赖：
+### 启动服务
+
+1. 使用 uv：
 
 ```bash
-uv sync --extra test
+uv run dushuoserver
 ```
 
-也可以通过 pip 安装本项目，并使用命令行入口启动：
-
-```bash
-pip install .
-dushuoserver --host 0.0.0.0 --port 8000
-```
-
-启动服务：
+2. 纯 Python：
 
 ```bash
 python -m dushuoserver
 ```
 
-也可以直接使用 Uvicorn：
+3. 也可以直接使用 Uvicorn：
 
 ```bash
-uvicorn dushuoserver.app:app --app-dir src --host 0.0.0.0 --port 8000
+uvicorn dushuoserver.app:app --app-dir src --host 0.0.0.0 --port 18470
 ```
 
-## 命令行参数
-
-| 参数 | 说明 |
-| --- | --- |
-| `--host` | 监听地址，默认 `0.0.0.0` |
-| `--port` | 监听端口；未指定时使用默认配置中的 `port` |
-| `--workers` | Uvicorn 工作进程数，默认 `1` |
-| `--reload` | 开启开发模式热重载 |
-| `--log-level` | 日志级别 |
-| `--no-access-log` | 关闭访问日志 |
-| `--config` / `--default-config` | 默认配置 TOML 文件路径 |
-| `--database` / `--db-path` | SQLite 数据库文件路径 |
-| `--activity-retention-seconds` | 覆盖数字活动保留时间 |
-| `--countdown-seconds` | 覆盖死亡判定倒计时时间 |
-| `--final-task` | 覆盖最终任务脚本 |
-| `--pairing-window-seconds` | 覆盖配对窗口时间 |
-| `--message-cache-seconds` | 覆盖短报文缓存时间 |
-
-示例：
+4. 也可以通过 pip 安装本项目，并使用命令行入口启动：
 
 ```bash
-dushuoserver --host 127.0.0.1 --port 8080 --database ./data/dushuo.db
-dushuoserver --config ./my_config.toml --reload
+pip install .
+dushuoserver --help
 ```
 
-默认监听 `0.0.0.0:8000`，数据库文件为当前工作目录下的 `dushuo.db`。
+### 查看参数
 
-默认配置位于 `src/dushuoserver/default_config.toml`。服务启动时会将默认值写入数据库；客户端只能修改允许修改的配置项，服务端口不可修改。如果通过 `--config` 指定配置文件，则使用该文件作为默认配置来源。
+在启动指令后增加 `--help` 参数查看参数说明，例如：
+
+```bash
+dushuoserver --help
+```
 
 ## 配置
 
-可由客户端修改的配置项：
+服务端启动时，读取配置参数的优先级为：**默认配置 < 配置文件 < 命令行参数 < 服务端现有数据库**
 
-- `activity_retention_seconds`
-- `countdown_seconds`
-- `final_task`
-- `pairing_window_seconds`
-- `message_cache_seconds`
+其中，数据库仅会存储运行时参数。以下是默认配置文件：
 
-固定配置项：
+```toml
+host_address = "0.0.0.0"    # 服务端地址
+host_port    = 18470        # 服务端端口
+log_level    = "info"      # 全局日志等级，可以是 DEBUG, INFO, WARNING, ERROR, CRITICAL
+db_path      = "dushuodb.sqlite3" # 数据库路径
 
-- `port`
+[uvicron]
+    workers    = 1  # uvicorn 工作进程数
+    hot_reload  = false  # 是否开启热重载
+    access_log = true   # 是否开启访问日志
+
+[runtime]   # 运行时参数可在服务端启动后更改，从配置文件读取之后，也会在数据库中重新读取一遍，优先级为 数据库 > 命令行传参 > 配置文件 > 默认参数
+    activity_cache_duration = 86400 # 客户端活动消息的缓存时长（秒）
+    death_countdown         = 86400 # 死亡判定倒计时（秒）
+    execution_task          = ""    # 最终任务执行命令
+    message_cache_duration  = 3600  # 短报文缓存时长（秒）
+    pairing_window_time     = 300   # 配对窗口时长（秒）
+
+```
+
+启动服务时，可以在命令行通过 `--config` 参数指定配置文件路径，例如：
+
+```bash
+dushuoserver --config /path/to/config.toml
+```
+
+执行服务端程序时，可通过 `--help` 查看参数说明。
 
 ## API
 
-详见 `docs/API-Reference.md`。所有业务接口均需要配对密钥，可通过 HTTP 头 `X-Pairing-Key` 或查询参数 `key` 传递。`/health` 与配对页面除外。
-
-主要接口：
-
-- `GET /health`：健康检查。
-- `GET /`：配对页面，仅在配对窗口内可用。
-- `GET /api/pairing`：获取配对信息。
-- `POST /api/activity`：上报数字活动。
-- `GET /api/status`：查询服务状态。
-- `GET /api/config`：读取配置。
-- `PUT /api/config`：修改可修改配置。
-- `POST /api/message`：短报文获取、设置与删除。
-
-## 测试
-
-```bash
-uv run pytest
-python -m compileall src
-```
-
-测试使用独立的临时 SQLite 数据库，不会修改项目根目录下的 `dushuo.db`。
-
-## 开发
-
-代码格式化：
-
-```bash
-black src tests
-```
-
-新增接口后，请同步更新 `docs/API-Reference.md`。提交前至少运行 `uv run pytest` 与 `python -m compileall src`。
-
-## 安全说明
-
-- `final_task` 会通过 shell 执行，请仅配置可信脚本。
-- 配对密钥在每次进程启动时重新生成。
-- 服务端口不可由客户端修改。
-- 配对密钥应妥善保管，所有业务接口均需要配对密钥。
+详见 `docs/API-Reference.md` 。所有业务接口均需要配对密钥，可通过 HTTP 头 `X-Pairing-Key` 或查询参数 `key` 传递。 `/health` 与配对页面除外。

@@ -1,6 +1,6 @@
 """度朔服务端的日志模块"""
 
-from TrimLog import object_constants, logger, log__init__, __version__ as TrimlogVersion
+from TrimLog import object_constants, logger, log__init__
 from . import __appname__, __version__
 
 # 调试模式，在正式发布之前须要关闭
@@ -29,13 +29,6 @@ logger.is_logging = True
 logger.suffix = ".dss"
 logger.is_tips = True
 logger.printing = not osc.is_release
+logger.license_level = "INFO"
 
 logger.baseinfo_shower()
-
-logger.license_shower(
-    lib_name="TrimLog",
-    license_name="Apache License, Version 2.0",
-    license_line="版权所有 © 2022-2026 FedDragon1, bgArray, Eilles",
-    lib_version=TrimlogVersion,
-    include_startline=True,
-)

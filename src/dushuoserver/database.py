@@ -1,13 +1,12 @@
 """度朔服务端数据库访问层。"""
 
-import json
 import sqlite3
 import time
 from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any, Optional
 
-from . import config
+from .config import config, RuntimeConfig
 from .logger import logger
 
 
@@ -17,7 +16,7 @@ def get_connection() -> Generator[sqlite3.Connection, None, None]:
 
     使用上下文管理器确保连接在使用后关闭，避免 Windows 上文件被占用。
     """
-    conn = sqlite3.connect(config.DB_PATH)
+    conn = sqlite3.connect(config.db_path)
     conn.row_factory = sqlite3.Row
     try:
         yield conn
@@ -27,10 +26,11 @@ def get_connection() -> Generator[sqlite3.Connection, None, None]:
 
 def init_database() -> None:
     """初始化数据库表结构并写入默认配置。"""
-    logger.info("初始化数据库")
+    global config
+    logger.info("数据库初始化")
     with get_connection() as conn:
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS config (
+            CREATE TABLE IF NOT EXISTS rtconfig (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             )
@@ -59,48 +59,38 @@ def init_database() -> None:
             )
             """)
 
-        # 监听端口等不可变配置不写入数据库；数据库只保存可运行时修改的配置。
-        for key, value in config.DEFAULT_CONFIG.items():
-            if key not in config.MUTABLE_CONFIG_KEYS:
-                continue
-            conn.execute(
-                "INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
-                (key, json.dumps(value)),
-            )
+        conn.commit()
 
-        # 命令行显式覆盖项优先于数据库中已有值。
-        for key, value in getattr(config, "CONFIG_OVERRIDES", {}).items():
-            if key not in config.MUTABLE_CONFIG_KEYS:
-                continue
-            conn.execute(
-                "INSERT INTO config (key, value) VALUES (?, ?) "
-                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                (key, json.dumps(value)),
-            )
+        # 运行时参数确认
+        runtime_config_rows = dict(
+            conn.execute("SELECT key, value FROM rtconfig").fetchall()
+        )
+
+        for key, value in config.runtime.model_dump(mode="json").items():
+            if key not in runtime_config_rows:
+                conn.execute(
+                    "INSERT INTO rtconfig (key, value) VALUES (?, ?)",
+                    (key, value),
+                )
+            # conn.execute(
+            #     "INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
+            #     (key, value),
+            # )
 
         conn.commit()
 
-
-def get_config() -> dict[str, Any]:
-    """读取当前服务配置。"""
-    logger.info("读取配置")
-    with get_connection() as conn:
-        rows = conn.execute("SELECT key, value FROM config").fetchall()
-
-    result = dict(config.DEFAULT_CONFIG)
-    for row in rows:
-        result[row["key"]] = json.loads(row["value"])
-    logger.debug("配置：`{}`".format(result))
-    return result
+    config.runtime = config.runtime.model_validate(runtime_config_rows)
 
 
 def set_config_value(key: str, value: Any) -> None:
+    global config
+    config.runtime.update(key, value)
     """写入或更新一个配置项。"""
     with get_connection() as conn:
         conn.execute(
-            "INSERT INTO config (key, value) VALUES (?, ?) "
+            "INSERT INTO rtconfig (key, value) VALUES (?, ?) "
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            (key, json.dumps(value)),
+            (key, config.runtime.model_dump(mode="json")[key]),
         )
         conn.commit()
 

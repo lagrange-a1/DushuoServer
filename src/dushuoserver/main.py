@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Dict
 
 import uvicorn
 
-from . import config
+from .config import config
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -15,27 +16,36 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="dushuoserver",
         description="度朔服务端：通过监控数字活动进行生死判断。",
+        argument_default=argparse.SUPPRESS,
+        add_help=False,
+        suggest_on_error=True,
+        color=True,
+    )
+
+    parser.add_argument(
+        "-h",
+        "--help",
+        action="help",
+        help="显示帮助信息并退出",
+    )
+    parser.add_argument(
+        "-v",
+        "--version",
+        action="version",
+        version="%(prog)s 0.1.0",
+        help="显示版本信息并退出",
+    )
+    parser.add_argument(
+        "-l",
+        "--licence",
+        "--license",
+        action="store_true",
+        help="显示软件授权信息并打印至日志文件后退出",
     )
 
     starter_argumets = parser.add_argument_group(
         "启动参数",
         "在服务端启动时须配置的参数，无法在客户端修改。",
-    )
-
-    starter_argumets.add_argument(
-        "-a",
-        "--host",
-        "--addr",
-        "--address",
-        default="0.0.0.0",
-        help="监听地址",
-    )
-    starter_argumets.add_argument(
-        "-p",
-        "--port",
-        type=int,
-        default=18470,
-        help="监听端口",
     )
 
     starter_argumets.add_argument(
@@ -49,37 +59,58 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     starter_argumets.add_argument(
-        "--workers",
-        type=int,
-        default=1,
-        help="Uvicorn 工作进程数",
+        "-a",
+        "--addr",
+        "--address",
+        "--host-address",
+        dest="host",
+        type=str,
+        default=None,
+        help="监听地址",
     )
     starter_argumets.add_argument(
-        "-r",
-        "--reload",
-        action="store_true",
-        help="开启开发模式热重载",
+        "-p",
+        "--port",
+        "--host-port",
+        dest="port",
+        type=int,
+        default=None,
+        help="监听端口",
     )
-
     starter_argumets.add_argument(
         "--log-level",
-        default="info",
+        default=None,
         choices=["critical", "error", "warning", "info", "debug", "trace"],
         help="日志级别",
     )
     starter_argumets.add_argument(
-        "--no-access-log",
-        action="store_true",
-        help="关闭 Uvicorn 访问日志",
-    )
-
-    starter_argumets.add_argument(
+        "-d",
         "--database",
         "--db-path",
         dest="database_path",
         type=Path,
         default=None,
         help="SQLite 数据库文件路径",
+    )
+
+    starter_argumets.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="Uvicorn 工作进程数",
+    )
+    starter_argumets.add_argument(
+        "--hot-reload",
+        dest="hot_reload",
+        action="store_true",
+        default=None,
+        help="开启 Uvicorn 开发模式热重载",
+    )
+    starter_argumets.add_argument(
+        "--no-access-log",
+        action="store_true",
+        default=None,
+        help="关闭 Uvicorn 访问日志",
     )
 
     # 可运行时修改的配置项，可通过命令行覆盖默认配置文件。
@@ -90,81 +121,119 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     runtime_argumets.add_argument(
-        "--activity-retention-seconds",
+        "--live-activity-duration",
+        "--activity-cache-duration",
         dest="seconds",
         type=int,
-        default=86400,
+        default=None,
         help="数字活动缓存时间（秒）",
     )
     runtime_argumets.add_argument(
         "--countdown-seconds",
+        "--death-countdown",
         dest="countdown",
         type=int,
-        default=86400,
+        default=None,
         help="倒计时延续时间（秒）",
     )
     runtime_argumets.add_argument(
-        "--final-task",
+        "--execution-task",
         dest="command",
         type=str,
         default=None,
-        help="亡语任务",
+        help="最终任务执行命令",
     )
-    runtime_argumets.add_argument("--pairing-window-seconds", type=int, default=None)
-    runtime_argumets.add_argument("--message-cache-seconds", type=int, default=None)
+    runtime_argumets.add_argument(
+        "--message-cache-duration",
+        type=int,
+        default=None,
+        help="短报文消息缓存时间（秒）",
+    )
+    runtime_argumets.add_argument(
+        "--pairing-window-time",
+        type=int,
+        default=None,
+        help="配对链接的有效窗口时长（秒）",
+    )
 
     return parser
 
 
 def main(argv: list[str] | None = None) -> None:
-    """解析命令行参数并启动服务。"""
+    """解析命令行参数并启动服务"""
+
     args = build_parser().parse_args(argv)
 
+    if args.licence:
+        from .license_show import main as license_show
+
+        license_show()
+        return
+
+    global config
+
+    # 数据库 > 命令行传参 > 配置文件 > 默认参数
+
     if args.config_path is not None:
-        config.set_default_config_path(args.config_path)
+        config = config.load_config(args.config_path)
+
+    overrides = config.model_dump(mode="python")
+
+    if args.host is not None:
+        overrides["host_address"] = args.host
+    if args.port is not None:
+        overrides["host_port"] = args.port
+
+    true_log_level = None
+    if args.log_level is not None:
+        overrides["log_level"] = true_log_level = args.log_level
+        if "TRACE" in true_log_level.upper():
+            true_log_level = "TRACE"
 
     if args.database_path is not None:
-        config.set_db_path(args.database_path)
+        overrides["db_path"] = args.database_path
+    if args.hot_reload is not None:
+        overrides["uvicron"]["hot_reload"] = args.hot_reload
+    if args.workers is not None:
+        if overrides["uvicron"]["hot_reload"]:
+            overrides["uvicron"]["workers"] = 1
+        else:
+            overrides["uvicron"]["workers"] = args.workers
+    if args.no_access_log is not None:
+        overrides["uvicron"]["access_log"] = not args.no_access_log
+    if args.seconds is not None:
+        overrides["runtime"]["activity_cache_duration"] = args.seconds
+    if args.countdown is not None:
+        overrides["runtime"]["death_countdown"] = args.countdown
+    if args.command is not None:
+        overrides["runtime"]["execution_task"] = args.command
+    if args.message_cache_duration is not None:
+        overrides["runtime"]["message_cache_duration"] = args.message_cache_duration
+    if args.pairing_window_time is not None:
+        overrides["runtime"]["pairing_window_time"] = args.pairing_window_time
 
-    overrides: dict[str, object] = {}
-    if args.port is not None:
-        config.DEFAULT_CONFIG["port"] = args.port
-    if args.activity_retention_seconds is not None:
-        overrides["activity_retention_seconds"] = args.activity_retention_seconds
-    if args.countdown_seconds is not None:
-        overrides["countdown_seconds"] = args.countdown_seconds
-    if args.final_task is not None:
-        overrides["final_task"] = args.final_task
-    if args.pairing_window_seconds is not None:
-        overrides["pairing_window_seconds"] = args.pairing_window_seconds
-    if args.message_cache_seconds is not None:
-        overrides["message_cache_seconds"] = args.message_cache_seconds
+    config = config.model_validate(overrides)
+    true_log_level = true_log_level or config.log_level
 
-    config.CONFIG_OVERRIDES = overrides
-    config.DEFAULT_CONFIG.update(overrides)
+    from .logger import logger
 
-    port = int(config.DEFAULT_CONFIG.get("port", 8000))
+    logger.set_print_level = config.log_level
 
-    workers = args.workers
-    if args.reload and workers != 1:
-        workers = 1
+    logger.debug(
+        "获得完整参数为：```\n{}\n```，即将启动服务".format(config.dump_as_toml())
+    )
 
     uvicorn.run(
         "dushuoserver.app:app",
-        host=args.host,
-        port=port,
-        reload=args.reload,
-        workers=workers,
-        log_level=args.log_level,
-        access_log=not args.no_access_log,
+        host=config.host_address,
+        port=config.host_port,
+        reload=config.uvicron.hot_reload,
+        workers=config.uvicron.workers,
+        log_level=true_log_level,
+        access_log=config.uvicron.access_log,
     )
 
-    from .logger import logger
-    from TrimLog.logger_constants import WEIGHT_ORDER
-
-    if (trimlog_log_level := args.log_level.upper()) not in WEIGHT_ORDER:
-        trimlog_log_level = "DEBUG"
-    logger.set_print_level = trimlog_log_level
+    logger.info("服务已启动")
 
 
 if __name__ == "__main__":
