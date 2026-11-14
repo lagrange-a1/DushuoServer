@@ -1,6 +1,5 @@
 """度朔服务端的日志模块"""
 
-
 from TrimLog import object_constants, logger, log__init__, __version__ as TrimlogVersion
 from . import __appname__, __version__
 
@@ -13,7 +12,10 @@ osc = object_constants.ObjectStateConstant(
     logging_project_version=__version__,
     is_this_a_release=not DEBUGGING,
     logging_exit_exec=lambda x: print(
-        "[EXTREME CRITICAL ERROR] 运行时严重错误（`{}`:`{}`），本程序无法继续运行，请查阅日志文件：`{}`，特别关注以下错误信息：\n{}".format(
+        (
+            "[EXTREME CRITICAL ERROR] 运行时严重错误（`{}`:`{}`）"
+            "，本程序无法继续运行，请查阅日志文件：`{}`，特别关注以下错误信息：\n{}"
+        ).format(
             x.exception_type, x.exception_value, x.log_file_path, x.message_content
         )
     ),

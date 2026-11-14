@@ -90,10 +90,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     runtime_argumets.add_argument(
-        "--activity-retention-seconds", type=int, default=None
+        "--activity-retention-seconds",
+        dest="seconds",
+        type=int,
+        default=86400,
+        help="数字活动缓存时间（秒）",
     )
-    runtime_argumets.add_argument("--countdown-seconds", type=int, default=None)
-    runtime_argumets.add_argument("--final-task", type=str, default=None)
+    runtime_argumets.add_argument(
+        "--countdown-seconds",
+        dest="countdown",
+        type=int,
+        default=86400,
+        help="倒计时延续时间（秒）",
+    )
+    runtime_argumets.add_argument(
+        "--final-task",
+        dest="command",
+        type=str,
+        default=None,
+        help="亡语任务",
+    )
     runtime_argumets.add_argument("--pairing-window-seconds", type=int, default=None)
     runtime_argumets.add_argument("--message-cache-seconds", type=int, default=None)
 
