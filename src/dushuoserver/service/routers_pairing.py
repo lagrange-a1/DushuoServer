@@ -2,18 +2,18 @@
 
 import time
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 
 from ..runtime import state
-from ..schemas import PairRequest, SignedRequest
+from ..schemas import PairRequest
 from ..services import (
     pairing_payload,
     pairing_qr_html,
     register_client,
     reopen_pairing_window,
+    require_signature,
     verify_pairing_code,
-    verify_signed_request,
 )
 
 router = APIRouter(tags=["pairing"])
@@ -75,10 +75,8 @@ def pair(body: PairRequest) -> dict:
 
 
 @router.post("/api/pairing/reopen")
-def reopen_pairing(body: SignedRequest) -> dict:
+def reopen_pairing(client_id: str = Depends(require_signature)) -> dict:
     """由已配对的客户端重新开放配对窗口。"""
-    client_id = verify_signed_request(body)
-
     reopen_pairing_window()
 
     payload = pairing_payload()

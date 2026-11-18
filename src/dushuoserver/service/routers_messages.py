@@ -2,7 +2,7 @@
 
 import time
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException, Response
 
 from ..config import config
 from ..logger import logger
@@ -14,51 +14,61 @@ from ..database import (
     insert_message,
     mark_message_fetched,
 )
-from ..schemas import MessageRequest, SignedRequest
-from ..services import parse_payload, verify_signed_request
+from ..schemas import MessageRequest
+from ..services import require_signature
 
 router = APIRouter(tags=["messages"])
 
 
-@router.post("/api/message")
-def message(body: SignedRequest) -> dict:
-    """处理短报文的获取、设置与删除。"""
-    verify_signed_request(body)
-    msg_request = parse_payload(body, MessageRequest)
-
+@router.get("/api/message")
+def fetch_message(client_id: str = Depends(require_signature)) -> dict:
+    """获取当前短报文，并记录本客户端已读取。"""
     cleanup_messages(config.runtime.message_cache_duration)
 
     msg = get_latest_message()
-
-    # 内容不为空时，按短报文协议设置或删除消息。
-    if msg_request.content:
-        # 若客户端已经获取当前消息，则不进行写入或删除操作。
-        if msg is not None and has_fetched_message(body.client_id, msg["id"]):
-            return {
-                "action": "already_fetched",
-                "message": msg["content"],
-            }
-
-        if msg is None:
-            insert_message(msg_request.content, time.time())
-            logger.debug("客户端`{}`设置了新的短报文".format(body.client_id))
-            return {"action": "set", "message": msg_request.content}
-
-        delete_message(msg["id"])
-        logger.debug("客户端`{}`删除了当前短报文".format(body.client_id))
-        return {"action": "deleted", "message": None}
-
-    # 内容为空时，获取当前消息。
     if msg is None:
-        return {"action": "empty", "message": None}
+        raise HTTPException(status_code=404, detail="当前没有短报文")
 
-    already_fetched = has_fetched_message(body.client_id, msg["id"])
+    already_fetched = has_fetched_message(client_id, msg["id"])
 
     if not already_fetched:
-        mark_message_fetched(body.client_id, msg["id"], time.time())
+        mark_message_fetched(client_id, msg["id"], time.time())
 
+    logger.debug("客户端`{}`获取了短报文".format(client_id))
     return {
-        "action": "fetched",
         "message": msg["content"],
+        "created_at": msg["created_at"],
         "already_fetched": already_fetched,
     }
+
+
+@router.post("/api/message", status_code=201)
+def send_message(
+    body: MessageRequest, client_id: str = Depends(require_signature)
+) -> dict:
+    """发送一条新的短报文；当前已存在短报文时须先删除。"""
+    cleanup_messages(config.runtime.message_cache_duration)
+
+    if get_latest_message() is not None:
+        raise HTTPException(status_code=409, detail="当前已有短报文，请先删除后再发送")
+
+    created_at = time.time()
+    insert_message(body.content, created_at)
+
+    logger.debug("客户端`{}`发送了新的短报文".format(client_id))
+    return {"message": body.content, "created_at": created_at}
+
+
+@router.delete("/api/message", status_code=204)
+def remove_message(client_id: str = Depends(require_signature)) -> Response:
+    """删除当前短报文。"""
+    cleanup_messages(config.runtime.message_cache_duration)
+
+    msg = get_latest_message()
+    if msg is None:
+        raise HTTPException(status_code=404, detail="当前没有短报文")
+
+    delete_message(msg["id"])
+
+    logger.debug("客户端`{}`删除了短报文".format(client_id))
+    return Response(status_code=204)

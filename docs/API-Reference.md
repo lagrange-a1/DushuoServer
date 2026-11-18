@@ -8,7 +8,7 @@
 - 基础地址：`http://<服务端地址>:<端口>`，默认端口 `18470`
 - 请求与响应均为 JSON（`Content-Type: application/json`），编码 UTF-8；`GET /` 除外，返回 HTML
 - 所有时间戳均为 Unix 时间戳（秒）
-- 除 `GET /health`、`GET /`、`GET /api/pairing`、`POST /api/pair` 外，其余接口均须签名鉴权
+- 除 `GET /health`、`GET /`、`GET /api/pairing`、`POST /api/pair` 外，其余接口均须以签名请求头鉴权
 
 ## 鉴权
 
@@ -17,9 +17,9 @@
 鉴权分两步：
 
 1. **配对**：在服务端启动或重新开放的窗口时间内，客户端提交配对码与自己的公钥完成配对；
-2. **签名**：此后客户端的每个业务请求均由其私钥签名，服务端使用配对时登记的公钥校验。
+2. **签名**：此后客户端的每个业务请求均由其私钥签名，签名置于请求头中，服务端使用配对时登记的公钥校验。
 
-配对码只在配对窗口内有效；业务请求中不含任何密钥明文。
+配对码只在配对窗口内有效；业务请求中不含任何密钥明文，签名与请求方法、路径和请求体绑定。
 
 ### 配对窗口
 
@@ -51,14 +51,15 @@
 
 ### 签名请求
 
-须签名接口的请求体结构：
+签名凭证放在三个请求头中，因此 `GET`、`DELETE` 一类不带请求体的接口同样能够鉴权：
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `client_id` | string | 配对时使用的客户端标识 |
-| `timestamp` | int | 请求发出时的 Unix 时间戳（秒），与服务端偏差超过 300 秒将被拒绝 |
-| `payload` | object | 业务数据，结构见各接口说明 |
-| `signature` | string | 签名，标准 Base64 编码 |
+| 请求头 | 说明 |
+| --- | --- |
+| `X-Client-Id` | 配对时使用的客户端标识 |
+| `X-Timestamp` | 请求发出时的 Unix 时间戳（秒） |
+| `X-Signature` | 签名，标准 Base64 编码 |
+
+时间戳与服务端的偏差超过运行时配置 `signature_time_tolerance`（默认 300 秒）时，请求被拒绝。
 
 签名算法由公钥类型决定：
 
@@ -70,24 +71,30 @@
 
 签名的计算步骤：
 
-1. 构造规范化字节串（客户端与服务端约定一致）：
+1. 构造规范化字节串（各行以换行符连接，客户端与服务端约定一致）：
 
 ```python
-data = json.dumps(
-    {"client_id": client_id, "timestamp": timestamp, "payload": payload},
-    ensure_ascii=False,
-    sort_keys=True,
-    separators=(",", ":"),
-).encode("utf-8")
+data = "\n".join(
+    [
+        method.upper(),                    # 请求方法，如 GET、POST、PUT、DELETE
+        path,                              # 请求路径，如 /api/message
+        client_id,                         # 与 X-Client-Id 一致
+        str(timestamp),                    # 与 X-Timestamp 一致
+        hashlib.sha256(body).hexdigest(),  # 请求体原始字节的 SHA-256 十六进制摘要
+    ]
+).encode("utf-8")                          # 无请求体时 body 为空字节串 b""
 ```
 
 2. 使用私钥对 `data` 签名；
-3. 将签名以标准 Base64 编码，填入 `signature` 字段。
+3. 将签名以标准 Base64 编码，填入 `X-Signature` 请求头。
+
+签名覆盖了请求方法与路径，同一份签名无法被挪用到其他接口；请求体以摘要形式参与签名，任何改动都会使校验失败。查询参数不在签名范围内，业务接口也均不使用查询参数。
 
 完整示例（Python，`cryptography` + `httpx`）：
 
 ```python
 import base64
+import hashlib
 import json
 import time
 
@@ -104,8 +111,23 @@ public_pem = private_key.public_key().public_bytes(
     format=serialization.PublicFormat.SubjectPublicKeyInfo,
 ).decode()
 
+
+def signed_headers(method: str, path: str, body: bytes) -> dict:
+    """按上文约定生成签名请求头。"""
+    timestamp = str(int(time.time()))
+    data = "\n".join(
+        [method.upper(), path, CLIENT_ID, timestamp, hashlib.sha256(body).hexdigest()]
+    ).encode("utf-8")
+
+    return {
+        "X-Client-Id": CLIENT_ID,
+        "X-Timestamp": timestamp,
+        "X-Signature": base64.b64encode(private_key.sign(data)).decode(),
+    }
+
+
 with httpx.Client(base_url=SERVER, timeout=10) as http:
-    # 配对
+    # 配对：向服务端上传公钥
     pairing_code = http.get("/api/pairing").json()["pairing_code"]
     http.post("/api/pair", json={
         "pairing_code": pairing_code,
@@ -113,23 +135,17 @@ with httpx.Client(base_url=SERVER, timeout=10) as http:
         "public_key": public_pem,
     })
 
-    # 签名请求
-    timestamp = int(time.time())
-    payload = {"activity": "正在打字"}
-    data = json.dumps(
-        {"client_id": CLIENT_ID, "timestamp": timestamp, "payload": payload},
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    signature = base64.b64encode(private_key.sign(data)).decode()
+    # 不带请求体的接口
+    body = b""
+    headers = signed_headers("GET", "/api/status", body)
+    print(http.get("/api/status", headers=headers).json())
 
-    print(http.post("/api/activity", json={
-        "client_id": CLIENT_ID,
-        "timestamp": timestamp,
-        "payload": payload,
-        "signature": signature,
-    }).json())
+    # 带 JSON 请求体的接口：先序列化，再对实际发送的字节签名
+    payload = {"content": "你好，度朔"}
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    headers = signed_headers("POST", "/api/message", body)
+    headers["Content-Type"] = "application/json"
+    print(http.post("/api/message", content=body, headers=headers).status_code)
 ```
 
 ## 接口一览
@@ -142,10 +158,12 @@ with httpx.Client(base_url=SERVER, timeout=10) as http:
 | `POST` | `/api/pair` | 配对码 | 配对并登记公钥 |
 | `POST` | `/api/pairing/reopen` | 签名 | 重新开放配对窗口 |
 | `POST` | `/api/activity` | 签名 | 上报数字活动 |
-| `POST` | `/api/status` | 签名 | 查询服务状态 |
-| `POST` | `/api/config` | 签名 | 读取配置 |
+| `GET` | `/api/status` | 签名 | 查询服务状态 |
+| `GET` | `/api/config` | 签名 | 读取配置 |
 | `PUT` | `/api/config` | 签名 | 修改运行时配置 |
-| `POST` | `/api/message` | 签名 | 短报文的设置、获取与删除 |
+| `GET` | `/api/message` | 签名 | 获取当前短报文 |
+| `POST` | `/api/message` | 签名 | 发送新的短报文 |
+| `DELETE` | `/api/message` | 签名 | 删除当前短报文 |
 
 ## 接口详情
 
@@ -189,7 +207,7 @@ with httpx.Client(base_url=SERVER, timeout=10) as http:
 
 ### POST /api/pairing/reopen
 
-须签名，载荷为空对象 `{}`。仅已配对的客户端可以调用，用于重新开放配对窗口：服务端生成新的配对码，并按 `pairing_window_time` 重新计时。窗口是否已经过期均可调用，已过期的窗口会被重新打开。
+须签名，无请求体。仅已配对的客户端可以调用，用于重新开放配对窗口：服务端生成新的配对码，并按 `pairing_window_time` 重新计时。窗口是否已经过期均可调用，已过期的窗口会被重新打开。
 
 响应：
 
@@ -204,11 +222,11 @@ with httpx.Client(base_url=SERVER, timeout=10) as http:
 }
 ```
 
-新配对码供后续客户端配对使用；已配对客户端的签名鉴权不受影响。错误：`403` 客户端未配对或签名无效。
+新配对码供后续客户端配对使用；已配对客户端的签名鉴权不受影响。错误：`401` 客户端未配对或签名无效。
 
 ### POST /api/activity
 
-载荷：
+请求体：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -223,9 +241,9 @@ with httpx.Client(base_url=SERVER, timeout=10) as http:
 
 服务端存活（未触发最终任务）时，收到活动即重置死亡判定倒计时；已触发后活动仍会被记录，但不再重置，此时 `countdown_reset` 为 `false`。
 
-### POST /api/status
+### GET /api/status
 
-载荷为空对象 `{}`。响应：
+无请求体。响应：
 
 ```json
 {
@@ -234,15 +252,15 @@ with httpx.Client(base_url=SERVER, timeout=10) as http:
   "last_activity_at": null,
   "pairing_window_open": false,
   "pairing_window_remaining_seconds": 0,
-  "config": { "……": "完整配置，同 POST /api/config" }
+  "config": { "……": "完整配置，同 GET /api/config" }
 }
 ```
 
 `status` 为 `alive` 或 `dead`。
 
-### POST /api/config
+### GET /api/config
 
-载荷为空对象 `{}`，返回当前完整配置：
+无请求体，返回当前完整配置：
 
 ```json
 {
@@ -264,7 +282,7 @@ with httpx.Client(base_url=SERVER, timeout=10) as http:
 
 ### PUT /api/config
 
-载荷为需要修改的运行时配置项，全部可选，只提交要修改的字段：
+请求体为需要修改的运行时配置项，全部可选，只提交要修改的字段：
 
 ```json
 {"death_countdown": 3600, "execution_task": "echo 已死亡"}
@@ -274,43 +292,60 @@ with httpx.Client(base_url=SERVER, timeout=10) as http:
   `message_cache_duration`、`pairing_window_time`、`signature_time_tolerance`
 - 时长类字段必须为正整数，否则返回 `400`
 - 修改 `death_countdown` 且尚未触发最终任务时，倒计时立即按新值重置
-- 成功后返回更新后的完整配置（同 `POST /api/config`）
+- 成功后返回更新后的完整配置（同 `GET /api/config`）
+
+### GET /api/message
+
+无请求体。返回服务端缓存中的当前短报文，并记录本客户端已读取：
+
+```json
+{
+  "message": "你好，度朔",
+  "created_at": 1790000000.0,
+  "already_fetched": false
+}
+```
+
+`already_fetched` 表示本客户端在本次请求之前是否已读取过该短报文。错误：`404` 当前没有短报文。
 
 ### POST /api/message
 
-载荷：
+请求体：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `content` | string | 消息内容；为空或省略表示获取消息 |
+| `content` | string | 消息内容，不可为空 |
 
-短报文协议（以「当前消息」指服务端缓存中的最新一条短报文）：
-
-| 请求 `content` | 当前缓存 | 响应 action | 效果 |
-| --- | --- | --- | --- |
-| 空 | 无 | `empty` | 无消息可取，`message` 为 `null` |
-| 空 | 有 | `fetched` | 返回消息，并标记该客户端已获取 |
-| 非空 | 无 | `set` | 写入新消息 |
-| 非空 | 有，该客户端未获取过 | `deleted` | 删除当前消息，不写入新内容 |
-| 非空 | 有，该客户端已获取过 | `already_fetched` | 返回当前消息，不做修改 |
-
-响应示例：
+发送一条新的短报文，成功返回 `201`：
 
 ```json
-{"action": "fetched", "message": "你好，度朔", "already_fetched": false}
+{
+  "message": "你好，度朔",
+  "created_at": 1790000000.0
+}
 ```
 
-消息的缓存时长由 `message_cache_duration` 控制，过期后自动清除。
+错误：`409` 当前已存在短报文，须先删除后再发送；`422` `content` 缺失或为空。
+
+### DELETE /api/message
+
+无请求体。删除当前短报文，成功返回 `204`，无响应内容。
+
+错误：`404` 当前没有短报文。
+
+短报文的缓存时长由 `message_cache_duration` 控制，超时后自动清除。
 
 ## 错误码
 
 | 状态码 | 含义 |
 | --- | --- |
 | `400` | 参数不合法（公钥无法解析、配置值非正整数等） |
-| `403` | 鉴权失败（配对码不匹配、客户端未配对、签名错误、时间戳超差） |
-| `404` | 路径不存在 |
+| `401` | 签名鉴权失败（缺少签名请求头、客户端未配对、签名验证失败、时间戳超差） |
+| `403` | 配对码不匹配 |
+| `404` | 资源不存在（路径不存在、当前没有短报文） |
+| `409` | 状态冲突（当前已有短报文时再次发送） |
 | `410` | 配对窗口已关闭 |
-| `422` | 请求体或载荷字段校验失败 |
+| `422` | 请求体字段校验失败 |
 | `500` | 服务器内部错误 |
 
 ## 人工测试客户端

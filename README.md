@@ -85,6 +85,7 @@ db_path      = "dushuodb.sqlite3" # 数据库路径
     execution_task          = ""    # 最终任务执行命令
     message_cache_duration  = 3600  # 短报文缓存时长（秒）
     pairing_window_time     = 300   # 配对窗口时长（秒）
+    signature_time_tolerance = 300  # 签名时间容差（秒）
 
 ```
 
@@ -98,4 +99,4 @@ dushuoserver --config /path/to/config.toml
 
 ## API
 
-详见 `docs/API-Reference.md` 。除 `/health` 与配对相关接口外，所有业务接口均需要先在配对窗口内完成配对，之后以客户端私钥对请求签名、由服务端以配对时登记的公钥校验。
+详见 `docs/API-Reference.md` 。除 `/health` 与配对相关接口外，所有业务接口均需要先在配对窗口内完成配对，之后以客户端私钥对请求签名（签名置于 `X-Client-Id`、`X-Timestamp`、`X-Signature` 三个请求头中），由服务端以配对时登记的公钥校验。

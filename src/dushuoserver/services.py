@@ -1,43 +1,47 @@
 """度朔服务端业务服务。"""
 
 import base64
+import hashlib
 import json
 import secrets
 import subprocess
 import time
 import qrcode
-from typing import Any, Optional, TypeVar
+from typing import Optional
 from io import BytesIO
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, ed25519, padding, rsa
-from fastapi import HTTPException
-from pydantic import BaseModel, ValidationError
+from fastapi import HTTPException, Request
 
 from .logger import logger
 from .config import config
 from .database import get_client_public_key, upsert_client
 from .runtime import state
-from .schemas import SignedRequest
 
 # 允许客户端登记的公钥类型。
 SupportedPublicKey = (
     rsa.RSAPublicKey | ed25519.Ed25519PublicKey | ec.EllipticCurvePublicKey
 )
 
-T = TypeVar("T", bound=BaseModel)
-
 
 def canonical_request_data(
-    client_id: str, timestamp: int, payload: dict[str, Any]
+    method: str, path: str, client_id: str, timestamp: int, body: bytes
 ) -> bytes:
-    """生成请求的规范化字节串，客户端须使用私钥对其签名。"""
-    return json.dumps(
-        {"client_id": client_id, "timestamp": timestamp, "payload": payload},
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
+    """生成请求的规范化字节串，客户端须使用私钥对其签名。
+
+    签名内容依次为请求方法、请求路径、客户端标识、时间戳与请求体的
+    SHA-256 摘要，以换行符连接；查询参数不参与签名。
+    """
+    return "\n".join(
+        [
+            method.upper(),
+            path,
+            client_id,
+            str(timestamp),
+            hashlib.sha256(body).hexdigest(),
+        ]
     ).encode("utf-8")
 
 
@@ -112,43 +116,53 @@ def reopen_pairing_window() -> None:
     logger.info("配对窗口已重新开放")
 
 
-def verify_signed_request(body: SignedRequest) -> str:
-    """校验签名请求，通过校验时返回客户端标识。"""
-    if abs(time.time() - body.timestamp) > config.runtime.signature_time_tolerance:
-        raise HTTPException(status_code=403, detail="请求时间戳超出允许偏差")
+async def require_signature(request: Request) -> str:
+    """校验签名请求头，通过校验时返回客户端标识。
 
-    pem_text = get_client_public_key(body.client_id)
-    if pem_text is None:
-        raise HTTPException(status_code=403, detail="客户端尚未配对")
+    签名凭证置于 `X-Client-Id`、`X-Timestamp` 与 `X-Signature` 三个请求头中，
+    因此 `GET`、`DELETE` 一类不带请求体的接口同样能够完成鉴权。
+    """
+    client_id = request.headers.get("X-Client-Id")
+    timestamp_text = request.headers.get("X-Timestamp")
+    signature_text = request.headers.get("X-Signature")
+
+    if not client_id or not timestamp_text or not signature_text:
+        logger.warning("请求`{}`缺少签名请求头".format(request.url.path))
+        raise HTTPException(status_code=401, detail="缺少签名请求头")
 
     try:
-        signature = base64.b64decode(body.signature, validate=True)
-    except Exception:
-        raise HTTPException(status_code=403, detail="签名不是有效的 Base64 数据")
+        timestamp = int(timestamp_text)
+    except ValueError:
+        logger.warning("客户端`{}`的签名时间戳`{}`不是整数".format(client_id, timestamp_text))
+        raise HTTPException(status_code=401, detail="签名时间戳不是整数")
 
-    data = canonical_request_data(body.client_id, body.timestamp, body.payload)
+    if abs(time.time() - timestamp) > config.runtime.signature_time_tolerance:
+        logger.warning("客户端`{}`的请求时间戳超出允许偏差".format(client_id))
+        raise HTTPException(status_code=401, detail="请求时间戳超出允许偏差")
+
+    pem_text = get_client_public_key(client_id)
+    if pem_text is None:
+        logger.warning("客户端`{}`尚未配对".format(client_id))
+        raise HTTPException(status_code=401, detail="客户端尚未配对")
+
+    try:
+        signature = base64.b64decode(signature_text, validate=True)
+    except Exception:
+        logger.warning("客户端`{}`的签名不是有效的 Base64 数据".format(client_id))
+        raise HTTPException(status_code=401, detail="签名不是有效的 Base64 数据")
+
+    body = await request.body()
+    data = canonical_request_data(
+        request.method, request.url.path, client_id, timestamp, body
+    )
 
     try:
         verify_signature(load_public_key(pem_text), data, signature)
     except InvalidSignature:
-        raise HTTPException(status_code=403, detail="签名验证失败")
+        logger.warning("客户端`{}`请求`{}`的签名验证失败".format(client_id, request.url.path))
+        raise HTTPException(status_code=401, detail="签名验证失败")
 
-    return body.client_id
-
-
-def parse_payload(body: SignedRequest, model: type[T]) -> T:
-    """将签名请求中的业务数据解析为指定的载荷模型。"""
-    try:
-        return model.model_validate(body.payload)
-    except ValidationError as exc:
-        logger.warning(
-            "无法解析`{timestamp}`时来自`{client_id}`的、由`{signature}`签名的载荷：\n{payload}".format(
-                **body.model_dump(
-                    mode="python",
-                )
-            )
-        )
-        raise HTTPException(status_code=422, detail=exc.errors(include_url=False))
+    return client_id
 
 
 def execute_final_task():

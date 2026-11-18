@@ -9,11 +9,10 @@
 身份信息（客户端标识与 Ed25519 私钥）保存在 tests/.manual_client_profile.json，
 删除该文件即可重置身份并重新配对。
 
-短报文协议提示：
-    content 为空        获取当前缓存消息；
-    content 不为空      若缓存为空则设置新消息；
-                        若当前消息未被本客户端获取过则删除当前消息；
-                        若当前消息已被本客户端获取过则返回 already_fetched。
+短报文接口说明：
+    GET     /api/message  获取当前短报文，并记录本客户端已读取；
+    POST    /api/message  发送新的短报文（当前已有短报文时返回 409，须先删除）；
+    DELETE  /api/message  删除当前短报文。
 """
 
 import json
@@ -31,23 +30,25 @@ except ImportError:
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).parent))
 
-from client_tools import build_signed_body, generate_keypair
+from client_tools import generate_keypair, request_signed
 
 PROFILE_PATH = Path(__file__).parent / ".manual_client_profile.json"
 DEFAULT_SERVER = "http://127.0.0.1:18470"
 
 MENU = """\
 ----------- 度朔服务端人工测试客户端 -----------
-  1   健康检查              GET  /health
-  2   查看配对信息          GET  /api/pairing
-  3   打开配对页面          GET  /
-  4   配对（上传公钥）      POST /api/pair
-  5   重新开放配对窗口      POST /api/pairing/reopen
-  6   上报数字活动          POST /api/activity
-  7   查询服务状态          POST /api/status
-  8   读取配置              POST /api/config
-  9   修改配置              PUT  /api/config
-  10  短报文操作            POST /api/message
+  1   健康检查              GET    /health
+  2   查看配对信息          GET    /api/pairing
+  3   打开配对页面          GET    /
+  4   配对（上传公钥）      POST   /api/pair
+  5   重新开放配对窗口      POST   /api/pairing/reopen
+  6   上报数字活动          POST   /api/activity
+  7   查询服务状态          GET    /api/status
+  8   读取配置              GET    /api/config
+  9   修改配置              PUT    /api/config
+  10  获取短报文            GET    /api/message
+  11  发送短报文            POST   /api/message
+  12  删除短报文            DELETE /api/message
   0   退出
 ----------------------------------------------"""
 
@@ -58,6 +59,7 @@ RUNTIME_FIELDS = (
     ("execution_task", str, "最终任务执行命令"),
     ("message_cache_duration", int, "短报文缓存时长（秒）"),
     ("pairing_window_time", int, "配对窗口时长（秒）"),
+    ("signature_time_tolerance", int, "签名时间容差（秒）"),
 )
 
 
@@ -107,13 +109,17 @@ def signed_request(
     profile: dict[str, Any],
     method: str,
     path: str,
-    payload: dict[str, Any],
+    json_body: Optional[dict[str, Any]] = None,
 ) -> httpx.Response:
-    """构造并发送一个带签名的业务请求。"""
-    body = build_signed_body(
-        profile["client_id"], profile["private_key"].encode(), payload
+    """构造并发送一个带签名请求头的业务请求。"""
+    return request_signed(
+        http,
+        method,
+        path,
+        profile["client_id"],
+        profile["private_key"].encode(),
+        json_body,
     )
-    return http.request(method, path, json=body)
 
 
 def do_pair(http: httpx.Client, profile: dict[str, Any]) -> None:
@@ -176,14 +182,26 @@ def do_config_update(http: httpx.Client, profile: dict[str, Any]) -> None:
     show_response(signed_request(http, profile, "PUT", "/api/config", updates))
 
 
-def do_message(http: httpx.Client, profile: dict[str, Any]) -> None:
-    """短报文操作。"""
-    content = input("消息内容（直接回车表示获取消息）: ")
+def do_message_fetch(http: httpx.Client, profile: dict[str, Any]) -> None:
+    """获取当前短报文。"""
+    show_response(signed_request(http, profile, "GET", "/api/message"))
+
+
+def do_message_send(http: httpx.Client, profile: dict[str, Any]) -> None:
+    """发送新的短报文。"""
+    content = input("消息内容: ").strip()
+    if not content:
+        print("消息内容不能为空，已取消。")
+        return
+
     show_response(
-        signed_request(
-            http, profile, "POST", "/api/message", {"content": content or None}
-        )
+        signed_request(http, profile, "POST", "/api/message", {"content": content})
     )
+
+
+def do_message_delete(http: httpx.Client, profile: dict[str, Any]) -> None:
+    """删除当前短报文。"""
+    show_response(signed_request(http, profile, "DELETE", "/api/message"))
 
 
 def main() -> None:
@@ -210,24 +228,22 @@ def main() -> None:
                     do_pair(http, profile)
                 elif choice == "5":
                     show_response(
-                        signed_request(
-                            http, profile, "POST", "/api/pairing/reopen", {}
-                        )
+                        signed_request(http, profile, "POST", "/api/pairing/reopen")
                     )
                 elif choice == "6":
                     do_activity(http, profile)
                 elif choice == "7":
-                    show_response(
-                        signed_request(http, profile, "POST", "/api/status", {})
-                    )
+                    show_response(signed_request(http, profile, "GET", "/api/status"))
                 elif choice == "8":
-                    show_response(
-                        signed_request(http, profile, "POST", "/api/config", {})
-                    )
+                    show_response(signed_request(http, profile, "GET", "/api/config"))
                 elif choice == "9":
                     do_config_update(http, profile)
                 elif choice == "10":
-                    do_message(http, profile)
+                    do_message_fetch(http, profile)
+                elif choice == "11":
+                    do_message_send(http, profile)
+                elif choice == "12":
+                    do_message_delete(http, profile)
                 elif choice == "0":
                     print("再见。")
                     return
