@@ -2,8 +2,8 @@
 [python]: https://img.shields.io/badge/python-3.10-AB70FF?style=for-the-badge
 [release]: https://img.shields.io/github/v/release/lagrange-a1/DushuoServer?style=for-the-badge&label=发行版&include_prereleases
 [license]: https://img.shields.io/github/license/Lagrange-a1/DushuoServer?style=for-the-badge&label=协议&color=228B22
-[github-repo-stars]: https://img.shields.io/github/stars/lagrange-a1/DushuoServer?color=20D9B9&logo=GitHub&style=for-the-badge
-[github-repo-forks]: https://img.shields.io/github/forks/lagrange-a1/DushuoServer?color=20D9B9&logo=GitHub&style=for-the-badge
+[github-repo-stars]: https://img.shields.io/github/stars/lagrange-a1/DushuoServer?color=20D9B9&logo=GitHub&style=for-the-badge&label=星标
+[github-repo-forks]: https://img.shields.io/github/forks/lagrange-a1/DushuoServer?color=20D9B9&logo=GitHub&style=for-the-badge&label=派生
 [github-commit-activity]: https://img.shields.io/github/commit-activity/m/lagrange-a1/DushuoServer%2Fmain?style=for-the-badge&logo=GitHub&label=提交活动&color=20D9B9
 
 <h1 align="center">度朔<small style="font-size: 45%">服务端</small></h1>
@@ -24,6 +24,7 @@
 [![][python]](https://www.python.org/)
 [![][license]](LICENSE)
 [![][release]](../../releases)
+
 [![github-repo-stars]](https://github.com/lagrange-a1/DushuoServer/stargazers)
 [![github-repo-forks]](https://github.com/lagrange-a1/DushuoServer/forks)
 [![github-commit-activity]](https://github.com/lagrange-a1/DushuoServer/commits)

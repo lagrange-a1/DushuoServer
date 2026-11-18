@@ -46,7 +46,7 @@ $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 # 6. 清理构建产物
 Write-Host "正在清理..." -ForegroundColor Yellow
 
-$targets = @("build", "logs", "log", ".pytest_cache", ".pdm-build")
+$targets = @("build", "dist", "logs", "log", ".pytest_cache", ".pdm-build")
 
 Get-ChildItem -Path . -Recurse | ForEach-Object {
     if ($_.PSIsContainer -and $_.Name -like "*.egg-info") {
@@ -67,7 +67,4 @@ foreach ($path in $targets) {
 }
 
 Write-Host "所有操作已完成！" -ForegroundColor Cyan
-Write-Host "已保留 dist 文件以便发布发行版，按下任意键删除并退出" -ForegroundColor Yellow
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-
-Remove-Item -Path "dist" -Recurse -Force -ErrorAction SilentlyContinue
