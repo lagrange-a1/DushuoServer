@@ -1,10 +1,11 @@
 """度朔服务端的日志模块"""
 
+from os.path import exists as path_exists
 from TrimLog import object_constants, logger, log__init__
 from . import __appname__, __version__
 
-# 调试模式，在正式发布之前须要关闭
-DEBUGGING = True
+# 调试模式判定
+DEBUGGING = path_exists("debugging.status.on")
 
 osc = object_constants.ObjectStateConstant(
     is_debugging=DEBUGGING,

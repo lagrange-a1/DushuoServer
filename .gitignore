@@ -1,6 +1,7 @@
 
 
 # 服务端特定文件
+debugging.status.on
 tests/.manual_client_profile.json
 *.sqlite3
 /logs/

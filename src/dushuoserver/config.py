@@ -13,6 +13,7 @@ if python_version >= (3, 11):
 else:
     import tomli as tomllib  # pyright: ignore[reportMissingImports]
 
+
 class DeshuoConfigBaseModel(BaseModel):
 
     def update(self, key: str, value: Any):
@@ -65,8 +66,11 @@ class ServerConfig(DeshuoConfigBaseModel):
         default="INFO", description="全局日志等级"
     )
     """全局日志等级"""
-    db_path: Path = Field(default=Path("dushuodb.sqlite3"), description="数据库文件路径")
+    db_path: Path = Field(
+        default=Path("dushuodb.sqlite3"), description="数据库文件路径"
+    )
     """数据库文件路径"""
+    demo_mode: bool = Field(default=False, description="是否作为演示服务器启用")
 
     uvicron: UvicronConfig = Field(default_factory=UvicronConfig)
     """Uvicorn 配置"""
@@ -79,7 +83,7 @@ class ServerConfig(DeshuoConfigBaseModel):
     def _normalize_log_level(v: object) -> object:
         if isinstance(v, str):
             v = v.upper()
-        if v in ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'):
+        if v in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
             return v
         else:
             print(

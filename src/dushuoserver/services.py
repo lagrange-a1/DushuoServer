@@ -211,6 +211,11 @@ def execute_final_task():
         logger.info("未配置最终任务，跳过执行")
         return
 
+    if config.demo_mode:
+        logger.warning("当前处于演示模式下，跳过执行最终任务")
+        return
+
+
     logger.info("开始执行最终任务")
     try:
         subprocess.run(

@@ -1,10 +1,14 @@
 # \src\dushuoserver\config.toml
 # 配置样例
 
+
 host_address = "0.0.0.0"          # 服务端地址
 host_port    = 18470              # 服务端端口
-log_level    = "info"             # 全局日志等级，可以是 DEBUG, INFO, WARNING, ERROR, CRITICAL
+log_level    = "INFO"             # 全局日志等级
 db_path      = "dushuodb.sqlite3" # 数据库路径
+demo_mode    = false              # 是否开启演示模式（作为公共测试服务端）
+# 全局日志等级可以是 DEBUG, INFO, WARNING, ERROR, CRITICAL
+# 若执行目录下包含文件 `debugging.status.on`，则无论如何覆写为 TRACE
 
 [uvicron]
     workers    = 1     # uvicorn 工作进程数

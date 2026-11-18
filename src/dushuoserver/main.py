@@ -93,6 +93,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="SQLite 数据库文件路径",
     )
+    starter_argumets.add_argument(
+        "--demo",
+        "--demo-mode",
+        "--demo-server",
+        dest="demo",
+        action="store_true",
+        type=bool,
+        default=False,
+        help="是否开启演示模式",
+    )
 
     starter_argumets.add_argument(
         "--workers",
@@ -192,15 +202,21 @@ def main(argv: list[str] | None = None) -> None:
         overrides["host_address"] = args.host
     if args.port is not None:
         overrides["host_port"] = args.port
-
-    true_log_level = None
-    if args.log_level is not None:
-        overrides["log_level"] = true_log_level = args.log_level
-        if "TRACE" in true_log_level.upper():
-            true_log_level = "TRACE"
-
+    if Path("debugging.status.on").exists():
+        true_log_level = "TRACE"
+        overrides["log_level"] = "DEBUG"
+    else:
+        true_log_level = None
+        if args.log_level is not None:
+            overrides["log_level"] = true_log_level = args.log_level
+            if "TRACE" in true_log_level.upper():
+                true_log_level = "TRACE"
     if args.database_path is not None:
         overrides["db_path"] = args.database_path
+    if args.demo is not None:
+        overrides["demo_mode"] = args.demo
+
+    
     if args.hot_reload is not None:
         overrides["uvicron"]["hot_reload"] = args.hot_reload
     if args.workers is not None:
@@ -210,6 +226,8 @@ def main(argv: list[str] | None = None) -> None:
             overrides["uvicron"]["workers"] = args.workers
     if args.no_access_log is not None:
         overrides["uvicron"]["access_log"] = not args.no_access_log
+
+    
     if args.seconds is not None:
         overrides["runtime"]["activity_cache_duration"] = args.seconds
     if args.countdown is not None:
