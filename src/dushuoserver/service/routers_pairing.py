@@ -1,7 +1,5 @@
 """配对路由。"""
 
-import time
-
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import HTMLResponse
 
@@ -56,9 +54,7 @@ def pairing_info() -> dict:
     payload = pairing_payload()
     return {
         **payload,
-        "window_remaining_seconds": max(
-            0, int(state.pairing_key_expires_at - time.time())
-        ),
+        "window_remaining_seconds": state.pairing_window_remaining_seconds,
     }
 
 
@@ -91,7 +87,5 @@ def reopen_pairing(client_id: str = Depends(require_signature)) -> dict:
     return {
         "reopened_by": client_id,
         **payload,
-        "window_remaining_seconds": max(
-            0, int(state.pairing_key_expires_at - time.time())
-        ),
+        "window_remaining_seconds": state.pairing_window_remaining_seconds,
     }

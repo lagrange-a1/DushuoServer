@@ -1,5 +1,6 @@
 """度朔服务端业务服务。"""
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -17,7 +18,12 @@ from fastapi import HTTPException, Request
 
 from .logger import logger
 from .config import config
-from .database import get_all_client_public_keys, get_client_public_key, upsert_client
+from .database import (
+    expire_clients,
+    get_all_client_public_keys,
+    get_client_public_key,
+    upsert_client,
+)
 from .runtime import state
 
 # 允许客户端登记的公钥类型。
@@ -212,9 +218,9 @@ def execute_final_task():
         return
 
     if config.demo_mode:
-        logger.warning("当前处于演示模式下，跳过执行最终任务")
+        logger.warning("演示模式：跳过执行最终任务`{}`".format(script))
+        state.update_deadline()
         return
-
 
     logger.info("开始执行最终任务")
     try:
@@ -228,6 +234,16 @@ def execute_final_task():
         logger.warning("最终任务执行超时，已终止")
     except Exception:
         logger.error("最终任务执行失败，服务继续运行")
+
+
+async def demo_maintenance_loop() -> None:
+    """演示模式下的例行维护循环：定期清除超期的配对客户端。"""
+    while True:
+        await asyncio.sleep(300)
+        removed = expire_clients(time.time() - 3600)
+        if removed:
+            logger.info("演示模式：已清除`{}`个超期的配对客户端".format(removed))
+        state.generate_pairing_key()
 
 
 def pairing_payload() -> dict[str, Optional[str]]:

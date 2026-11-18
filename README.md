@@ -114,7 +114,7 @@ dushuoserver --config /path/to/config.toml
 |  | host_port | `18470` | 整数 | `0`~`65535` | 服务端口 |
 |  | log_level | `INFO` | 字符串 | 只能为`TRACE`、`DEBUG`、`INFO`、`WARNING`、`ERROR`、`CRITICAL`其中之一。大小写不敏感。 | 全局日志等级，用以控制输出的日志在控制台的打印等级，设定之后，只有与设定值同级或更高级的日志才会打印在控制台上。若运行目录下包含文件 `debugging.status.on`，则无论如何都会覆写为 `TRACE` |
 |  | db_path | `"dushuodb.sqlite3"` | 字符串 | 合法的文件路径 | 数据库路径。若数据库中包含 **`[runtime]`** 层级对应的配置信息，则会覆盖该项配置配置。 |
-|  | demo_mode | `false` | 逻辑 | `true` 或 `false` | 是否开启演示模式。当开启演示模式时，服务端将不会执行最终命令，但是所有接口依旧生效；服务端会定期清理已配对的客户端公钥；服务端的配对窗口会改为常开 |
+|  | demo_mode | `false` | 逻辑 | `true` 或 `false` | 是否开启演示模式。当开启演示模式时，服务端将不会执行最终命令（但倒计时不会锁死为死亡状态，而是重新展开），所有接口依旧生效；服务端会每五分钟清理一次已配对超过1小时的客户端公钥；服务端的配对窗口改为常开 |
 | **`[uvicron]`** | workers | `1` | 整数 | `1`~理论`+∞` | uvicorn 工作进程数 |
 | **`[uvicron]`** | hot_reload | `false` | 逻辑 | `true` 或 `false` | 是否开启热重载 |
 | **`[uvicron]`** | access_log | `true` | 逻辑 | `true` 或 `false` | 是否开启访问日志 |
@@ -124,6 +124,22 @@ dushuoserver --config /path/to/config.toml
 | **`[runtime]`** | message_cache_duration | `3600` | 整数 | `0`~`+∞` | 短报文缓存时长（秒）；该参数决定了短报文保存在服务端的时间 |
 | **`[runtime]`** | pairing_window_time | `300` | 整数 | `0`~`+∞` | 配对窗口时长（秒）；该参数决定新的配对窗口开启的时长 |
 | **`[runtime]`** | signature_time_tolerance | `300` | 整数 | `0`~`+∞` | 签名时间容差（秒）；该参数决定客户端发送请求所携带的时间戳与服务端时间的容差，理论上不可能超过一分钟 |
+
+
+### 演示模式
+
+将 `demo_mode` 设为 `true`（配置文件或启动参数 `--demo`）即可把服务端作为公共测试环境运行。演示模式下：
+
+- **最终任务不予执行**：倒计时到期时仅在日志中记录，不会运行 `execution_task`；其余接口一律照常生效
+- **不锁定死亡状态**：到期后倒计时立即重新展开，`GET /api/status` 保持 `alive`，`POST /api/activity` 的重置行为持续可用；若要观察真实的死亡流程，请关闭演示模式
+- **配对窗口常开**：`GET /`、`GET /api/pairing`、`POST /api/pair` 不会因超时而返回 `410`，剩余时间字段返回 `null`
+- **定期清理配对客户端**：每 60 秒删除一次配对时刻早于 3600 秒之前的客户端记录；被清理的客户端须重新配对
+
+该项为启动级参数，只能由配置文件或命令行设定，客户端无法通过 `PUT /api/config` 修改，以免远程调用方解除演示模式的保护。
+
+```bash
+dushuoserver --demo
+```
 
 
 ## 接口

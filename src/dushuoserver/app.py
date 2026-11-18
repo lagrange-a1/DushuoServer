@@ -3,6 +3,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import List
 
 from .logger import logger
 
@@ -15,7 +16,7 @@ from . import __appname__, __version__, __descrpt__
 from .config import config
 from .database import init_database
 from .runtime import countdown_loop, state
-from .services import execute_final_task
+from .services import demo_maintenance_loop, execute_final_task
 from .service.routers_health import router as health_router
 from .service.routers_pairing import router as pairing_router
 from .service.routers_activity import router as activity_router
@@ -34,13 +35,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     state.update_deadline()
     state.generate_pairing_key()
-    task = asyncio.create_task(countdown_loop(execute_final_task))
+
+    tasks: List[asyncio.Task] = [
+        asyncio.create_task(countdown_loop(execute_final_task))
+    ]
+
+    if config.demo_mode:
+        logger.warning(
+            "演示模式已开启：最终任务不予执行，配对窗口常开，配对客户端定期清理"
+        )
+        tasks.append(asyncio.create_task(demo_maintenance_loop()))
+
     logger.info("服务启动完成，死亡判定倒计时与配对窗口已开启")
 
     try:
         yield
     finally:
-        task.cancel()
+        for task in tasks:
+            task.cancel()
         logger.info("服务正在关闭")
 
 

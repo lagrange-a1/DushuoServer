@@ -46,15 +46,18 @@ class State:
 
     @property
     def pairing_key(self) -> Optional[str]:
-        """配对密钥。"""
-        if self.__pairing_key_expire_at < time.time():
+        """配对密钥；演示模式下配对窗口常开，密钥不因超时而失效。"""
+        if not config.demo_mode and self.__pairing_key_expire_at < time.time():
             self.__pairing_key = None
         return self.__pairing_key
 
     @property
-    def pairing_key_expires_at(self) -> int:
-        """配对密钥的过期时间戳；尚未生成过密钥时为 -1。"""
-        return self.__pairing_key_expire_at
+    def pairing_window_remaining_seconds(self) -> Optional[int]:
+        """配对窗口的剩余秒数；演示模式下窗口常开，返回 None。"""
+        if config.demo_mode:
+            return None
+
+        return max(0, self.__pairing_key_expire_at - State.safe_integer_time(0))
 
     def update_deadline(self):
         """更新倒计时。"""
@@ -64,19 +67,28 @@ class State:
 state: State = State(triggered=False)
 
 
-async def countdown_loop(execute_final_task: Callable[[], None]):
+async def countdown_loop(execute_final_task: Callable[[], None], interval: float = 1.0):
     """
     后台倒计时循环。
 
-    当倒计时结束且尚未触发最终任务时，执行最终任务。
+    当倒计时结束且尚未触发最终任务时，执行最终任务。演示模式下不锁定死亡状态：
+    最终任务不予执行，倒计时随即重新展开，使服务端能够长期作为演示环境使用。
+    `interval` 为轮询间隔（秒），便于测试时加快节奏。
     """
     while True:
-        await asyncio.sleep(1)
+        await asyncio.sleep(interval)
 
         if state.triggered:
             continue
 
         if time.time() >= state.deadline:
+            if config.demo_mode:
+                logger.info(
+                    "演示模式：死亡判定倒计时结束，最终任务不予执行，倒计时重新展开"
+                )
+                state.update_deadline()
+                continue
+
             state.triggered = True
             logger.info("死亡判定倒计时结束，开始执行最终任务")
             await asyncio.to_thread(execute_final_task)

@@ -1,13 +1,16 @@
 """服务端接口自动化测试。"""
 
+import asyncio
 import json
 import time
 
+import pytest
 from fastapi.testclient import TestClient
 
 from client_tools import generate_keypair, request_signed, sign_request_headers
-from dushuoserver import runtime
+from dushuoserver import runtime, services
 from dushuoserver.config import config
+from dushuoserver.database import expire_clients, get_connection
 
 
 def expire_pairing_window() -> None:
@@ -409,3 +412,104 @@ def test_reopened_window_accepts_new_client(client: TestClient, pair) -> None:
 
     # 新客户端使用重新开放的配对码完成配对。
     assert pair("bob") is not None
+
+
+def drive_countdown_loop(callback, seconds: float = 0.2) -> None:
+    """以极短的轮询间隔驱动倒计时循环一段时间后中止。"""
+
+    async def _drive() -> None:
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(runtime.countdown_loop(callback, 0.01), seconds)
+
+    asyncio.run(_drive())
+
+
+def test_demo_mode_keeps_pairing_window_open(client: TestClient, monkeypatch) -> None:
+    monkeypatch.setattr(config, "demo_mode", True)
+
+    expire_pairing_window()
+
+    response = client.get("/api/pairing")
+    assert response.status_code == 200
+    assert response.json()["window_remaining_seconds"] is None
+
+
+def test_demo_mode_skips_final_task_execution(monkeypatch) -> None:
+    executed = []
+    monkeypatch.setattr(
+        services.subprocess, "run", lambda *args, **kwargs: executed.append(args)
+    )
+    monkeypatch.setattr(config.runtime, "execution_task", "echo 亡语")
+
+    monkeypatch.setattr(config, "demo_mode", True)
+    services.execute_final_task()
+    assert executed == []
+
+    monkeypatch.setattr(config, "demo_mode", False)
+    services.execute_final_task()
+    assert len(executed) == 1
+
+
+def test_demo_mode_rearms_countdown(monkeypatch) -> None:
+    executed = []
+    monkeypatch.setattr(config, "demo_mode", True)
+    monkeypatch.setattr(config.runtime, "death_countdown", 0)
+    runtime.state.triggered = False
+    runtime.state.deadline = int(time.time()) - 1
+
+    drive_countdown_loop(lambda: executed.append(1))
+
+    assert runtime.state.triggered is False
+    assert runtime.state.deadline >= int(time.time())
+
+
+def test_countdown_latches_death_without_demo_mode(monkeypatch) -> None:
+    executed = []
+    monkeypatch.setattr(config, "demo_mode", False)
+    runtime.state.triggered = False
+    runtime.state.deadline = int(time.time()) - 1
+
+    drive_countdown_loop(lambda: executed.append(1))
+
+    assert runtime.state.triggered is True
+    assert len(executed) == 1
+
+
+def test_demo_purge_removes_expired_clients(client: TestClient, pair, monkeypatch) -> None:
+    private_pem = pair("alice")
+    monkeypatch.setattr(config, "demo_client_lifetime", 1)
+
+    with get_connection() as conn:
+        conn.execute("UPDATE clients SET paired_at = ?", (time.time() - 2,))
+        conn.commit()
+
+    assert services.purge_expired_demo_clients() == 1
+    assert (
+        request_signed(client, "GET", "/api/status", "alice", private_pem).status_code
+        == 401
+    )
+
+
+def test_demo_purge_skipped_when_lifetime_disabled(
+    client: TestClient, pair, monkeypatch
+) -> None:
+    private_pem = pair("alice")
+    monkeypatch.setattr(config, "demo_client_lifetime", 0)
+
+    with get_connection() as conn:
+        conn.execute("UPDATE clients SET paired_at = ?", (time.time() - 3600,))
+        conn.commit()
+
+    assert services.purge_expired_demo_clients() == 0
+    assert (
+        request_signed(client, "GET", "/api/status", "alice", private_pem).status_code
+        == 200
+    )
+
+
+def test_expire_clients_only_touches_expired_rows(client: TestClient, pair) -> None:
+    pair("alice")
+    pair("bob")
+
+    assert expire_clients(time.time() - 10) == 0
+    assert expire_clients(time.time() + 10) == 2

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Dict
 
 import uvicorn
 
@@ -99,8 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--demo-server",
         dest="demo",
         action="store_true",
-        type=bool,
-        default=False,
+        default=None,
         help="是否开启演示模式",
     )
 

@@ -26,6 +26,7 @@
 - 配对码在服务端每次启动时生成，有效期由运行时配置 `pairing_window_time` 控制（默认 300 秒）
 - 窗口开放期间，同一个配对码可供多个客户端依次配对，互不影响
 - 窗口时长耗尽后，`GET /`、`GET /api/pairing` 与 `POST /api/pair` 均返回 `410`；此时任一已配对的客户端可调用 `POST /api/pairing/reopen` 重新开放窗口，服务端生成新的配对码并重新计时，无须重启服务端
+- 演示模式（`demo_mode = true`）下配对窗口常开，不会因超时返回 `410`，剩余时间字段返回 `null`（详见「演示模式」）
 - 获取配对码：
   - `GET /`：配对页面，展示二维码、服务端地址、配对码与桌面端配置码，适合人工查看
   - `GET /api/pairing`：以 JSON 返回同一份配对信息，适合客户端读取，仅在窗口开放时可用
@@ -200,6 +201,8 @@ with httpx.Client(base_url=SERVER, timeout=10) as http:
 }
 ```
 
+`window_remaining_seconds` 在演示模式下为 `null`，表示配对窗口常开。
+
 ### POST /api/pair
 
 请求体见「上传公钥」。全新的客户端登记成功，返回 `201`：
@@ -259,11 +262,12 @@ with httpx.Client(base_url=SERVER, timeout=10) as http:
   "last_activity_at": null,
   "pairing_window_open": false,
   "pairing_window_remaining_seconds": 0,
-  "client_id": "my-phone"
+  "client_id": "my-phone",
+  "demo_mode": false
 }
 ```
 
-`status` 为 `alive` 或 `dead`；`client_id` 为通过签名校验的客户端标识。完整配置请读取 `GET /api/config`。
+`status` 为 `alive` 或 `dead`；`client_id` 为通过签名校验的客户端标识；`pairing_window_remaining_seconds` 在演示模式下为 `null`。完整配置请读取 `GET /api/config`。
 
 ### GET /api/config
 
@@ -275,6 +279,7 @@ with httpx.Client(base_url=SERVER, timeout=10) as http:
   "host_port": 18470,
   "log_level": "INFO",
   "db_path": "dushuodb.sqlite3",
+  "demo_mode": false,
   "uvicron": {"workers": 1, "hot_reload": false, "access_log": true},
   "runtime": {
     "activity_cache_duration": 86400,

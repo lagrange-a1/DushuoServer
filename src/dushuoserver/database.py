@@ -209,3 +209,13 @@ def get_all_client_public_keys() -> list[tuple[str, str]]:
     with get_connection() as conn:
         rows = conn.execute("SELECT client_id, public_key FROM clients").fetchall()
     return [(row["client_id"], row["public_key"]) for row in rows]
+
+
+def expire_clients(expired_before: float) -> int:
+    """删除配对时刻早于给定时间的客户端，返回删除的记录数。"""
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "DELETE FROM clients WHERE paired_at < ?", (expired_before,)
+        )
+        conn.commit()
+    return cursor.rowcount
