@@ -36,16 +36,16 @@
     requires      = ["pdm-backend"]
     build-backend = "pdm.backend"
 
-# # https://backend.pdm-project.org/build_config/#build-configurations
-# [tool.pdm.build]
-#     source-includes = [
-#         "README",
-#         "LICENSE",
-#         "docs/"
-#     ]
-#     excludes = [
-#         "tests/",
-#     ]
+# https://backend.pdm-project.org/build_config/#build-configurations
+[tool.pdm.build]
+    source-includes = [
+        "README.md",
+        "LICENSE",
+        "docs/"
+    ]
+    # excludes = [
+    #     "tests/",
+    # ]
 
 [tool.pdm.version]
     source = "file"
