@@ -184,7 +184,7 @@ def mark_message_fetched(device_id: str, message_id: int, fetched_at: float) -> 
 
 
 def upsert_client(client_id: str, public_key: str) -> None:
-    """写入或更新一个客户端的公钥，重复配对视为更换密钥。"""
+    """写入或更新一个客户端的公钥。"""
     with get_connection() as conn:
         conn.execute(
             "INSERT INTO clients (client_id, public_key, paired_at) VALUES (?, ?, ?) "
@@ -202,3 +202,10 @@ def get_client_public_key(client_id: str) -> Optional[str]:
             (client_id,),
         ).fetchone()
     return None if row is None else row["public_key"]
+
+
+def get_all_client_public_keys() -> list[tuple[str, str]]:
+    """列出全部已登记客户端的标识与公钥。"""
+    with get_connection() as conn:
+        rows = conn.execute("SELECT client_id, public_key FROM clients").fetchall()
+    return [(row["client_id"], row["public_key"]) for row in rows]

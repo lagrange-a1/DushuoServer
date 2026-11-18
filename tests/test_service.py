@@ -67,6 +67,101 @@ def test_pair_rejects_broken_public_key(client: TestClient) -> None:
     assert response.status_code == 400
 
 
+def test_pair_creates_new_client(client: TestClient) -> None:
+    _, public_pem = generate_keypair()
+
+    response = client.post(
+        "/api/pair",
+        json={
+            "pairing_code": runtime.state.pairing_key,
+            "client_id": "alice",
+            "public_key": public_pem.decode(),
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json() == {
+        "paired": True,
+        "action": "created",
+        "client_id": "alice",
+    }
+
+
+def test_pair_with_known_key_is_not_stored_again(client: TestClient) -> None:
+    private_pem, public_pem = generate_keypair()
+
+    payload = {
+        "pairing_code": runtime.state.pairing_key,
+        "client_id": "alice",
+        "public_key": public_pem.decode(),
+    }
+    assert client.post("/api/pair", json=payload).status_code == 201
+
+    response = client.post("/api/pair", json=payload)
+
+    assert response.status_code == 200
+    assert response.json()["action"] == "unchanged"
+
+    # 未重复写入，该客户端仍可凭原私钥签名请求。
+    assert (
+        request_signed(client, "GET", "/api/status", "alice", private_pem).status_code
+        == 200
+    )
+
+
+def test_pair_rotates_public_key(client: TestClient) -> None:
+    _, old_public_pem = generate_keypair()
+    _, new_public_pem = generate_keypair()
+
+    first = client.post(
+        "/api/pair",
+        json={
+            "pairing_code": runtime.state.pairing_key,
+            "client_id": "alice",
+            "public_key": old_public_pem.decode(),
+        },
+    )
+    assert first.status_code == 201
+
+    second = client.post(
+        "/api/pair",
+        json={
+            "pairing_code": runtime.state.pairing_key,
+            "client_id": "alice",
+            "public_key": new_public_pem.decode(),
+        },
+    )
+
+    assert second.status_code == 200
+    assert second.json()["action"] == "rotated"
+
+
+def test_pair_rejects_key_used_by_other_client(client: TestClient) -> None:
+    _, public_pem = generate_keypair()
+
+    response = client.post(
+        "/api/pair",
+        json={
+            "pairing_code": runtime.state.pairing_key,
+            "client_id": "alice",
+            "public_key": public_pem.decode(),
+        },
+    )
+    assert response.status_code == 201
+
+    response = client.post(
+        "/api/pair",
+        json={
+            "pairing_code": runtime.state.pairing_key,
+            "client_id": "bob",
+            "public_key": public_pem.decode(),
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "该公钥已被其他客户端登记"
+
+
 def test_signed_request_requires_headers(client: TestClient) -> None:
     assert client.get("/api/status").status_code == 401
 
@@ -177,7 +272,7 @@ def test_status(client: TestClient, pair) -> None:
     assert result["status"] == "alive"
     assert result["countdown_remaining_seconds"] > 0
     assert result["pairing_window_open"] is True
-    assert "runtime" in result["config"]
+    assert result["client_id"] == "alice"
 
 
 def test_config_read_and_update(client: TestClient, pair) -> None:

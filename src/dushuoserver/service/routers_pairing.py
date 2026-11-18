@@ -2,7 +2,7 @@
 
 import time
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import HTMLResponse
 
 from ..runtime import state
@@ -62,14 +62,22 @@ def pairing_info() -> dict:
     }
 
 
-@router.post("/api/pair")
-def pair(body: PairRequest) -> dict:
-    """处理客户端配对请求，登记客户端公钥。"""
+@router.post("/api/pair", status_code=201)
+def pair(response: Response, body: PairRequest) -> dict:
+    """处理客户端配对请求，登记客户端公钥。
+
+    全新的客户端返回 201；更换公钥或公钥已登记时返回 200，
+    处置结果由响应中的 `action` 标示。
+    """
     verify_pairing_code(body.pairing_code)
-    register_client(body.client_id, body.public_key)
+
+    action = register_client(body.client_id, body.public_key)
+    if action != "created":
+        response.status_code = 200
 
     return {
         "paired": True,
+        "action": action,
         "client_id": body.client_id,
     }
 

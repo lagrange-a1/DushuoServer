@@ -17,7 +17,7 @@ from fastapi import HTTPException, Request
 
 from .logger import logger
 from .config import config
-from .database import get_client_public_key, upsert_client
+from .database import get_all_client_public_keys, get_client_public_key, upsert_client
 from .runtime import state
 
 # 允许客户端登记的公钥类型。
@@ -103,11 +103,45 @@ def verify_pairing_code(code: str) -> None:
         raise HTTPException(status_code=403, detail="配对码不匹配")
 
 
-def register_client(client_id: str, public_key: str) -> None:
-    """登记客户端公钥，完成配对。"""
-    load_public_key(public_key)
+def public_key_fingerprint(public_key: SupportedPublicKey) -> str:
+    """计算公钥的 SHA-256 指纹，比对结果不受 PEM 排版影响。"""
+    der = public_key.public_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    return hashlib.sha256(der).hexdigest()
+
+
+def register_client(client_id: str, public_key: str) -> str:
+    """登记客户端公钥，完成配对，并返回本次配对所作的处置。
+
+    处置结果依次为 `created`（全新的客户端）、`rotated`（更换该客户端已登记的
+    公钥）与 `unchanged`（公钥与已登记的相同，不再重复写入）。同一把密钥不允许
+    同时登记给两个客户端标识。
+    """
+    fingerprint = public_key_fingerprint(load_public_key(public_key))
+    registered = dict(get_all_client_public_keys())
+
+    for other_id, other_pem in registered.items():
+        if other_id != client_id:
+            if public_key_fingerprint(load_public_key(other_pem)) == fingerprint:
+                logger.warning(
+                    "该公钥已被客户端`{}`登记，拒绝重复配对".format(other_id)
+                )
+                raise HTTPException(status_code=409, detail="该公钥已被其他客户端登记")
+
+    if client_id not in registered:
+        upsert_client(client_id, public_key)
+        logger.info("客户端`{}`完成配对".format(client_id))
+        return "created"
+
+    if public_key_fingerprint(load_public_key(registered[client_id])) == fingerprint:
+        logger.info("客户端`{}`提交的公钥与已登记的相同，未重复写入".format(client_id))
+        return "unchanged"
+
     upsert_client(client_id, public_key)
-    logger.info("客户端`{}`完成配对".format(client_id))
+    logger.info("客户端`{}`更换了配对公钥".format(client_id))
+    return "rotated"
 
 
 def reopen_pairing_window() -> None:
@@ -133,7 +167,9 @@ async def require_signature(request: Request) -> str:
     try:
         timestamp = int(timestamp_text)
     except ValueError:
-        logger.warning("客户端`{}`的签名时间戳`{}`不是整数".format(client_id, timestamp_text))
+        logger.warning(
+            "客户端`{}`的签名时间戳`{}`不是整数".format(client_id, timestamp_text)
+        )
         raise HTTPException(status_code=401, detail="签名时间戳不是整数")
 
     if abs(time.time() - timestamp) > config.runtime.signature_time_tolerance:
@@ -159,7 +195,9 @@ async def require_signature(request: Request) -> str:
     try:
         verify_signature(load_public_key(pem_text), data, signature)
     except InvalidSignature:
-        logger.warning("客户端`{}`请求`{}`的签名验证失败".format(client_id, request.url.path))
+        logger.warning(
+            "客户端`{}`请求`{}`的签名验证失败".format(client_id, request.url.path)
+        )
         raise HTTPException(status_code=401, detail="签名验证失败")
 
     return client_id

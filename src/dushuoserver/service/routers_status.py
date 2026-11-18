@@ -4,7 +4,6 @@ import time
 
 from fastapi import APIRouter, Depends
 
-from ..config import config
 from ..runtime import state
 from ..services import require_signature
 
@@ -22,5 +21,5 @@ def status(client_id: str = Depends(require_signature)) -> dict:
         "last_activity_at": state.last_activity_at,
         "pairing_window_open": state.pairing_key is not None,
         "pairing_window_remaining_seconds": max(0, state.pairing_key_expires_at - now),
-        "cliend_id": client_id,
+        "client_id": client_id,
     }

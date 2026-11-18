@@ -46,7 +46,12 @@
 约定：
 
 - `public_key` 须为 PEM（SubjectPublicKeyInfo）格式公钥文本，支持 Ed25519、RSA、ECDSA 三类算法
-- `client_id` 配对成功后与公钥绑定；同一 `client_id` 再次配对会替换旧公钥，可用于更换设备密钥
+- `client_id` 由客户端自定，配对成功后即与该公钥绑定
+- 服务端按公钥指纹（DER 编码的 SHA-256）判重，`POST /api/pair` 的处置结果由响应中的 `action` 标示：
+  - `created`：全新的客户端标识与公钥，写入数据库并返回 `201`
+  - `rotated`：标识已存在但公钥不同，替换旧公钥（用于更换设备密钥），返回 `200`
+  - `unchanged`：该标识已登记同一公钥，不再重复写入，返回 `200`
+- 同一把密钥不得同时登记给两个 `client_id`，否则返回 `409`
 - 窗口内可配对多个客户端，互不影响
 
 ### 签名请求
@@ -197,13 +202,15 @@ with httpx.Client(base_url=SERVER, timeout=10) as http:
 
 ### POST /api/pair
 
-请求体见「上传公钥」。成功响应：
+请求体见「上传公钥」。全新的客户端登记成功，返回 `201`：
 
 ```json
-{"paired": true, "client_id": "my-phone"}
+{"paired": true, "action": "created", "client_id": "my-phone"}
 ```
 
-错误：`403` 配对码不匹配；`410` 配对窗口已关闭；`400` 公钥无法解析或类型不受支持；`422` 字段校验失败。
+`action` 为 `rotated`（更换该客户端已登记的公钥）或 `unchanged`（公钥与已登记的相同，未重复写入）时，返回 `200`。
+
+错误：`403` 配对码不匹配；`409` 该公钥已被其他客户端登记；`410` 配对窗口已关闭；`400` 公钥无法解析或类型不受支持；`422` 字段校验失败。
 
 ### POST /api/pairing/reopen
 
@@ -252,11 +259,11 @@ with httpx.Client(base_url=SERVER, timeout=10) as http:
   "last_activity_at": null,
   "pairing_window_open": false,
   "pairing_window_remaining_seconds": 0,
-  "config": { "……": "完整配置，同 GET /api/config" }
+  "client_id": "my-phone"
 }
 ```
 
-`status` 为 `alive` 或 `dead`。
+`status` 为 `alive` 或 `dead`；`client_id` 为通过签名校验的客户端标识。完整配置请读取 `GET /api/config`。
 
 ### GET /api/config
 
@@ -343,7 +350,7 @@ with httpx.Client(base_url=SERVER, timeout=10) as http:
 | `401` | 签名鉴权失败（缺少签名请求头、客户端未配对、签名验证失败、时间戳超差） |
 | `403` | 配对码不匹配 |
 | `404` | 资源不存在（路径不存在、当前没有短报文） |
-| `409` | 状态冲突（当前已有短报文时再次发送） |
+| `409` | 状态冲突（当前已有短报文时再次发送；公钥已被其他客户端登记） |
 | `410` | 配对窗口已关闭 |
 | `422` | 请求体字段校验失败 |
 | `500` | 服务器内部错误 |

@@ -48,7 +48,7 @@ def pair(client: TestClient):
                 "public_key": public_pem.decode(),
             },
         )
-        assert response.status_code == 200, response.text
+        assert response.status_code in (200, 201), response.text
         return private_pem
 
     return _pair
