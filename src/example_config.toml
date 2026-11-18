@@ -1,19 +1,20 @@
 # \src\dushuoserver\config.toml
 # 配置样例
 
-host_address = "0.0.0.0"    # 服务端地址
-host_port    = 18470        # 服务端端口
-log_level    = "info"      # 全局日志等级，可以是 DEBUG, INFO, WARNING, ERROR, CRITICAL
+host_address = "0.0.0.0"          # 服务端地址
+host_port    = 18470              # 服务端端口
+log_level    = "info"             # 全局日志等级，可以是 DEBUG, INFO, WARNING, ERROR, CRITICAL
 db_path      = "dushuodb.sqlite3" # 数据库路径
 
 [uvicron]
-    workers    = 1  # uvicorn 工作进程数
-    hot_reload  = false  # 是否开启热重载
-    access_log = true   # 是否开启访问日志
+    workers    = 1     # uvicorn 工作进程数
+    hot_reload = false # 是否开启热重载
+    access_log = true  # 是否开启访问日志
 
-[runtime]   # 运行时参数可在服务端启动后更改，从配置文件读取之后，也会在数据库中重新读取一遍，优先级为 数据库 > 命令行传参 > 配置文件 > 默认参数
-    activity_cache_duration = 86400 # 客户端活动消息的缓存时长（秒）
-    death_countdown         = 86400 # 死亡判定倒计时（秒）
-    execution_task          = ""    # 最终任务执行命令
-    message_cache_duration  = 3600  # 短报文缓存时长（秒）
-    pairing_window_time     = 300   # 配对窗口时长（秒）
+[runtime] # 运行时参数可在服务端启动后更改，从配置文件读取之后，也会在数据库中重新读取一遍，优先级为 数据库 > 命令行传参 > 配置文件 > 默认参数
+    activity_cache_duration  = 86400 # 客户端活动消息的缓存时长（秒）
+    death_countdown          = 86400 # 死亡判定倒计时（秒）
+    execution_task           = ""    # 最终任务执行命令
+    message_cache_duration   = 3600  # 短报文缓存时长（秒）
+    pairing_window_time      = 300   # 配对窗口时长（秒）
+    signature_time_tolerance = 300   # 签名时间容差（秒）

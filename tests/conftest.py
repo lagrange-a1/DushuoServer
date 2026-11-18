@@ -1,34 +1,32 @@
 """测试夹具。"""
 
-import time
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from dushuoserver import config, runtime
+from client_tools import generate_keypair
+from dushuoserver import runtime
+from dushuoserver.config import RuntimeConfig, config
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """为每个测试提供独立的数据库文件和运行时状态。"""
-    db_path = tmp_path / "dushuo.db"
-    monkeypatch.setattr(config, "DB_PATH", db_path)
+    """为每个测试提供独立的数据库文件与运行时状态。"""
+    monkeypatch.setattr(config, "db_path", tmp_path / "dushuo.db")
 
-    runtime.state["pairing_key"] = "test-pairing-key"
-    runtime.state["started_at"] = time.time()
-    runtime.state["deadline"] = time.time() + 86400
-    runtime.state["triggered"] = False
-    runtime.state["last_activity_at"] = None
+    config.runtime = RuntimeConfig()
+
+    runtime.state.generate_pairing_key()
+    runtime.state.update_deadline()
+    runtime.state.triggered = False
+    runtime.state.last_activity_at = None
 
     yield
 
-    if db_path.exists():
-        db_path.unlink()
-
 
 @pytest.fixture
-def client():
+def client() -> TestClient:
     """创建测试客户端。"""
     from dushuoserver.app import app
 
@@ -37,6 +35,20 @@ def client():
 
 
 @pytest.fixture
-def auth_headers() -> dict[str, str]:
-    """返回配对密钥请求头。"""
-    return {"X-Pairing-Key": "test-pairing-key"}
+def pair(client: TestClient):
+    """返回配对辅助函数：传入客户端标识，返回其私钥 PEM。"""
+
+    def _pair(client_id: str) -> bytes:
+        private_pem, public_pem = generate_keypair()
+        response = client.post(
+            "/api/pair",
+            json={
+                "pairing_code": runtime.state.pairing_key,
+                "client_id": client_id,
+                "public_key": public_pem.decode(),
+            },
+        )
+        assert response.status_code == 200, response.text
+        return private_pem
+
+    return _pair

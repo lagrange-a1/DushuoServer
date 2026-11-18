@@ -12,6 +12,10 @@ def main():
     from pydantic import __version__ as PydanticVersion
     from tomli_w import __version__ as TomliWVersion
     from fastapi import __version__ as FastAPIVersion
+    from cryptography import (
+        __version__ as CryptographyVersion,
+        __copyright__ as CryptographyCopyright,
+    )
 
     logger.license_shower(
         lib_name="Uvicorn",
@@ -45,6 +49,15 @@ def main():
         license_name="MIT License",
         license_line="Copyright (c) 2018 Sebastián Ramírez",
         lib_version=FastAPIVersion,
+        include_startline=True,
+        include_endline=False,
+    )
+
+    logger.license_shower(
+        lib_name="cryptography",
+        license_name="Apache License, Version 2.0",
+        license_line=CryptographyCopyright,
+        lib_version=CryptographyVersion,
         include_startline=True,
         include_endline=False,
     )

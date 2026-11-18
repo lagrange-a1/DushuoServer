@@ -1,57 +1,51 @@
 """配置管理路由。"""
 
-import time
-
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 
 from ..logger import logger
-from ..config import IMMUTABLE_CONFIG_KEYS, MUTABLE_CONFIG_KEYS
-
-from ..database import get_config, set_config_value
+from ..config import config
+from ..database import set_config_value
 from ..runtime import state
-from ..schemas import ConfigUpdateRequest
-from ..services import require_key
+from ..schemas import ConfigUpdateRequest, SignedRequest
+from ..services import parse_payload, verify_signed_request
 
 router = APIRouter(tags=["config"])
 
+# 必须为正整数的配置项。
+POSITIVE_INTEGER_KEYS = {
+    key
+    for key in config.runtime.model_fields_set
+    if isinstance(getattr(config.runtime, key), int)
+}
 
-@router.get("/api/config")
-def read_config(request: Request) -> dict:
+
+@router.post("/api/config")
+def read_config(body: SignedRequest) -> dict:
     """读取当前配置。"""
-    require_key(request)
-    return get_config()
+    verify_signed_request(body)
+
+    return config.model_dump(mode="json")
 
 
 @router.put("/api/config")
-def update_config(request: Request, body: ConfigUpdateRequest) -> dict:
-    """修改允许客户端修改的配置项。"""
-    require_key(request)
-
-    updates = body.model_dump(exclude_none=True)
-
-    if any(key in IMMUTABLE_CONFIG_KEYS for key in updates):
-        raise HTTPException(status_code=400, detail=f"所提交的配置项不可由客户端修改")
+def update_config(body: SignedRequest) -> dict:
+    """修改允许客户端修改的运行时配置项。"""
+    verify_signed_request(body)
+    updates = parse_payload(body, ConfigUpdateRequest).model_dump(exclude_none=True)
 
     for key, value in updates.items():
-        if key not in MUTABLE_CONFIG_KEYS:
-            raise HTTPException(status_code=400, detail=f"不支持修改配置项：{key}")
+        if key in POSITIVE_INTEGER_KEYS and value <= 0:
+            raise HTTPException(
+                status_code=400, detail="配置项`{}`必须为正整数".format(key)
+            )
 
-        if key in {
-            "activity_retention_seconds",
-            "countdown_seconds",
-            "pairing_window_seconds",
-            "message_cache_seconds",
-        }:
-            if not isinstance(value, int) or value <= 0:
-                raise HTTPException(
-                    status_code=400, detail=f"配置项 {key} 必须为正整数"
-                )
+        try:
+            set_config_value(key, value)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
-        set_config_value(key, value)
+    if "death_countdown" in updates and not state.triggered:
+        state.update_deadline()
 
-    if "countdown_seconds" in updates and not state["triggered"]:
-        cfg = get_config()
-        state["deadline"] = time.time() + cfg["countdown_seconds"]
-
-    logger.info("配置更新请求已处理: {}".format(sorted(updates)))
-    return get_config()
+    logger.info("配置更新请求已处理：{}".format(sorted(updates)))
+    return config.model_dump(mode="json")

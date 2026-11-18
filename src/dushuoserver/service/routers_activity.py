@@ -2,35 +2,41 @@
 
 import time
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 
 from ..logger import logger
-from ..database import cleanup_activities, get_config, insert_activity
+from ..config import config
+from ..database import cleanup_activities, insert_activity
 from ..runtime import state
-from ..schemas import ActivityRequest
-from ..services import require_key
+from ..schemas import ActivityRequest, SignedRequest
+from ..services import parse_payload, verify_signed_request
 
 router = APIRouter(tags=["activity"])
 
 
 @router.post("/api/activity")
-def report_activity(request: Request, body: ActivityRequest) -> dict:
+def report_activity(body: SignedRequest) -> dict:
     """接收数字活动并重置倒计时。"""
-    require_key(request)
-    cfg = get_config()
-    cleanup_activities(cfg["activity_retention_seconds"])
+    verify_signed_request(body)
+    activity = parse_payload(body, ActivityRequest)
 
-    now = body.timestamp or time.time()
-    insert_activity(body.client_id, body.activity, now)
+    cleanup_activities(config.runtime.activity_cache_duration)
 
-    state["last_activity_at"] = now
+    now = activity.timestamp or time.time()
+    insert_activity(body.client_id, activity.activity, now)
 
-    if not state["triggered"]:
-        state["deadline"] = now + cfg["countdown_seconds"]
-        logger.debug("收到客户端`{}`的活动，倒计时已重置".format(body.client_id))
+    state.last_activity_at = now
+
+    if not state.triggered:
+        state.update_deadline()
+        logger.info(
+            "收到客户端`{}`在`{}`时的活动`{}`，倒计时已重置".format(
+                body.client_id, activity.timestamp, activity.activity
+            )
+        )
 
     return {
         "accepted": True,
-        "countdown_reset": True,
-        "deadline": state["deadline"],
+        "countdown_reset": not state.triggered,
+        "deadline": state.deadline,
     }

@@ -8,7 +8,7 @@ from typing import Dict
 
 import uvicorn
 
-from .config import config
+from .config import ServerConfig, config
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -40,6 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--licence",
         "--license",
         action="store_true",
+        default=False,
         help="显示软件授权信息并打印至日志文件后退出",
     )
 
@@ -159,6 +160,16 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def apply_config(new_config: ServerConfig) -> None:
+    """将新的配置逐项写回共享的配置实例。
+
+    其余模块均以 `from .config import config` 持有同一个实例，重新绑定本模块
+    的名字不会影响它们，因此这里必须就地更新。
+    """
+    for name in type(config).model_fields:
+        setattr(config, name, getattr(new_config, name))
+
+
 def main(argv: list[str] | None = None) -> None:
     """解析命令行参数并启动服务"""
 
@@ -170,12 +181,10 @@ def main(argv: list[str] | None = None) -> None:
         license_show()
         return
 
-    global config
-
     # 数据库 > 命令行传参 > 配置文件 > 默认参数
 
     if args.config_path is not None:
-        config = config.load_config(args.config_path)
+        apply_config(config.load_config(args.config_path))
 
     overrides = config.model_dump(mode="python")
 
@@ -212,12 +221,15 @@ def main(argv: list[str] | None = None) -> None:
     if args.pairing_window_time is not None:
         overrides["runtime"]["pairing_window_time"] = args.pairing_window_time
 
-    config = config.model_validate(overrides)
+    apply_config(ServerConfig.model_validate(overrides))
     true_log_level = true_log_level or config.log_level
 
     from .logger import logger
 
     logger.set_print_level = config.log_level
+
+    from .license_show import main as license_show
+    license_show()
 
     logger.debug(
         "获得完整参数为：```\n{}\n```，即将启动服务".format(config.dump_as_toml())
@@ -233,7 +245,7 @@ def main(argv: list[str] | None = None) -> None:
         access_log=config.uvicron.access_log,
     )
 
-    logger.info("服务已启动")
+    logger.info("程序终止")
 
 
 if __name__ == "__main__":

@@ -98,4 +98,4 @@ dushuoserver --config /path/to/config.toml
 
 ## API
 
-详见 `docs/API-Reference.md` 。所有业务接口均需要配对密钥，可通过 HTTP 头 `X-Pairing-Key` 或查询参数 `key` 传递。 `/health` 与配对页面除外。
+详见 `docs/API-Reference.md` 。除 `/health` 与配对相关接口外，所有业务接口均需要先在配对窗口内完成配对，之后以客户端私钥对请求签名、由服务端以配对时登记的公钥校验。

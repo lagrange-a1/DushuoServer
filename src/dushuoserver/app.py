@@ -33,8 +33,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     init_database()
 
     state.update_deadline()
+    state.generate_pairing_key()
     task = asyncio.create_task(countdown_loop(execute_final_task))
-    logger.info("服务启动完成，死亡判定倒计时已启动")
+    logger.info("服务启动完成，死亡判定倒计时与配对窗口已开启")
 
     try:
         yield

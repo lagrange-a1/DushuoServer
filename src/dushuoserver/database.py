@@ -58,6 +58,13 @@ def init_database() -> None:
                 PRIMARY KEY (device_id, message_id)
             )
             """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS clients (
+                client_id TEXT PRIMARY KEY,
+                public_key TEXT NOT NULL,
+                paired_at REAL NOT NULL
+            )
+            """)
 
         conn.commit()
 
@@ -78,6 +85,11 @@ def init_database() -> None:
             # )
 
         conn.commit()
+
+        # 重新读取数据库中的运行时参数，保证内存与数据库一致
+        runtime_config_rows = dict(
+            conn.execute("SELECT key, value FROM rtconfig").fetchall()
+        )
 
     config.runtime = config.runtime.model_validate(runtime_config_rows)
 
@@ -169,3 +181,24 @@ def mark_message_fetched(device_id: str, message_id: int, fetched_at: float) -> 
             (device_id, message_id, fetched_at),
         )
         conn.commit()
+
+
+def upsert_client(client_id: str, public_key: str) -> None:
+    """写入或更新一个客户端的公钥，重复配对视为更换密钥。"""
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO clients (client_id, public_key, paired_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(client_id) DO UPDATE SET public_key = excluded.public_key",
+            (client_id, public_key, time.time()),
+        )
+        conn.commit()
+
+
+def get_client_public_key(client_id: str) -> Optional[str]:
+    """获取一个客户端的公钥；客户端未配对时返回 None。"""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT public_key FROM clients WHERE client_id = ?",
+            (client_id,),
+        ).fetchone()
+    return None if row is None else row["public_key"]

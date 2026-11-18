@@ -2,31 +2,28 @@
 
 import time
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 
-from ..database import get_config
+from ..config import config
 from ..runtime import state
-from ..services import require_key
+from ..schemas import SignedRequest
+from ..services import verify_signed_request
 
 router = APIRouter(tags=["status"])
 
 
-@router.get("/api/status")
-def status(request: Request) -> dict:
+@router.post("/api/status")
+def status(body: SignedRequest) -> dict:
     """返回服务端当前状态。"""
-    require_key(request)
+    verify_signed_request(body)
 
-    cfg = get_config()
     now = time.time()
 
     return {
-        "status": "dead" if state["triggered"] else "alive",
-        "countdown_remaining_seconds": max(0, state["deadline"] - now),
-        "last_activity_at": state["last_activity_at"],
-        "pairing_window_open": now
-        < state["started_at"] + cfg["pairing_window_seconds"],
-        "pairing_window_remaining_seconds": max(
-            0, state["started_at"] + cfg["pairing_window_seconds"] - now
-        ),
-        "config": cfg,
+        "status": "dead" if state.triggered else "alive",
+        "countdown_remaining_seconds": max(0, state.deadline - now),
+        "last_activity_at": state.last_activity_at,
+        "pairing_window_open": state.pairing_key is not None,
+        "pairing_window_remaining_seconds": max(0, state.pairing_key_expires_at - now),
+        "config": config.model_dump(mode="json"),
     }

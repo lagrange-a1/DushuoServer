@@ -49,6 +49,8 @@ class RuntimeConfig(DeshuoConfigBaseModel):
     """短报文消息缓存时间（秒）"""
     pairing_window_time: int = 300
     """配对窗口时长（秒）"""
+    signature_time_tolerance: int = 300
+    """签名时间容差（秒）"""
 
 
 class ServerConfig(DeshuoConfigBaseModel):

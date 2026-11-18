@@ -51,6 +51,11 @@ class State:
             self.__pairing_key = None
         return self.__pairing_key
 
+    @property
+    def pairing_key_expires_at(self) -> int:
+        """配对密钥的过期时间戳；尚未生成过密钥时为 -1。"""
+        return self.__pairing_key_expire_at
+
     def update_deadline(self):
         """更新倒计时。"""
         self.deadline = self.safe_integer_time(config.runtime.death_countdown)

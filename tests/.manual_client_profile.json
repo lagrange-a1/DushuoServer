@@ -1,0 +1,5 @@
+{
+  "client_id": "manual-client",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIMEazO2IdlP08GVJpeCLYBFYlqLTwbLOqMN9ZYsS9eZs\n-----END PRIVATE KEY-----\n",
+  "public_key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAhE1VTBvAkiuJ9QE+ymM78MdxKtVyDgv3/pSxrYJa1Wg=\n-----END PUBLIC KEY-----\n"
+}
