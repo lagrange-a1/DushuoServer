@@ -46,7 +46,7 @@ $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 # 6. 清理构建产物
 Write-Host "正在清理..." -ForegroundColor Yellow
 
-$targets = @("build", "logs", "log", ".\.pytest_cache")
+$targets = @("build", "logs", "log", ".pytest_cache", ".pdm-build")
 
 Get-ChildItem -Path . -Recurse | ForEach-Object {
     if ($_.PSIsContainer -and $_.Name -like "*.egg-info") {
